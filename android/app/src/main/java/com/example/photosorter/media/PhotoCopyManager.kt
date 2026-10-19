@@ -7,6 +7,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.DocumentsContract
+import android.system.Os
+import android.system.OsConstants
 import android.webkit.MimeTypeMap
 import com.example.photosorter.model.AlbumMapping
 import com.example.photosorter.model.PhotoItem
@@ -92,13 +95,48 @@ class PhotoCopyManager(context: Context) {
             ?: throw IOException("이 앨범에는 저장 가능한 로컬 사진 위치가 없습니다")
         val extension = extensionForMime(item.mimeType)
         val fileName = safePhotoFileName(item.displayName, extension)
+        // Photo Picker URIs do not always expose dates. When they do, carry the
+        // source's gallery date to copies whose image bytes contain no EXIF date.
+        val sourceDateMillis = sourceGalleryDateMillis(sourceUri)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            copyWithMediaStore(sourceUri, fileName, item.mimeType, mapping, relativePath)
+            copyWithMediaStore(sourceUri, fileName, item.mimeType, mapping, relativePath, sourceDateMillis)
         } else {
-            copyLegacy(sourceUri, fileName, item.mimeType, mapping, relativePath)
+            copyLegacy(sourceUri, fileName, item.mimeType, mapping, relativePath, sourceDateMillis)
         }
     }
+
+    /** MediaStore dates are provider metadata, so a picker may legitimately omit them. */
+    private fun sourceGalleryDateMillis(sourceUri: Uri): Long? {
+        val taken = queryPositiveDate(sourceUri, MediaStore.Images.ImageColumns.DATE_TAKEN)
+        if (taken != null) return taken
+        val modifiedSeconds = queryPositiveDate(sourceUri, MediaStore.MediaColumns.DATE_MODIFIED)
+        if (modifiedSeconds != null && modifiedSeconds <= Long.MAX_VALUE / 1000) {
+            return modifiedSeconds * 1000
+        }
+        return queryPositiveDate(sourceUri, DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+            ?: sourceFileDateMillis(sourceUri)
+    }
+
+    private fun queryPositiveDate(uri: Uri, columnName: String): Long? = try {
+        appContext.contentResolver.query(uri, arrayOf(columnName), null, null, null)?.use { cursor ->
+            if (!cursor.moveToFirst()) return@use null
+            val index = cursor.getColumnIndex(columnName)
+            if (index < 0 || cursor.isNull(index)) null else cursor.getLong(index).takeIf { it > 0 }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** Some picker providers expose the actual local file only through the read descriptor. */
+    private fun sourceFileDateMillis(uri: Uri): Long? = runCatching {
+        appContext.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+            val stat = Os.fstat(descriptor.fileDescriptor)
+            stat.st_mtime.takeIf {
+                OsConstants.S_ISREG(stat.st_mode) && it > 0 && it <= Long.MAX_VALUE / 1000
+            }?.times(1000)
+        }
+    }.getOrNull()
 
     private suspend fun copyWithMediaStore(
         sourceUri: Uri,
@@ -106,6 +144,7 @@ class PhotoCopyManager(context: Context) {
         mimeType: String,
         mapping: AlbumMapping,
         relativePath: String,
+        sourceDateMillis: Long?,
     ): Uri {
         val volumeName = normalizedVolume(mapping.volumeName)
         if (volumeName !in MediaStore.getExternalVolumeNames(appContext)) {
@@ -133,6 +172,11 @@ class PhotoCopyManager(context: Context) {
                 val bytesCopied = output.use { copyBytes(input, it) }
                 if (bytesCopied == 0L) throw IOException("선택한 사진이 비어 있습니다")
 
+                // File mtime is MediaStore's fallback date for images without an
+                // embedded capture date. Set it while the item is still pending so
+                // the provider scans the original date when publishing it.
+                preserveDateOnOwnedMedia(destination, sourceDateMillis)
+
                 val published = resolver.update(
                     destination,
                     ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
@@ -147,6 +191,26 @@ class PhotoCopyManager(context: Context) {
                 throw error
             }
         } ?: throw IOException("선택한 사진을 열 수 없습니다. 다시 선택해 주세요")
+    }
+
+    private fun preserveDateOnOwnedMedia(destination: Uri, sourceDateMillis: Long?) {
+        if (sourceDateMillis == null) return
+        runCatching {
+            val path = appContext.contentResolver.query(
+                destination,
+                arrayOf(MediaStore.MediaColumns.DATA),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                cursor.getColumnIndex(MediaStore.MediaColumns.DATA).takeIf { it >= 0 }
+                    ?.let(cursor::getString)
+            }
+            if (path != null) File(path).setLastModified(sourceDateMillis)
+        }
+        // Direct file access can be unavailable on some providers/Android versions;
+        // the copy itself must still succeed and retain its unchanged image bytes.
     }
 
     private fun normalizedVolume(name: String): String = when (name) {
@@ -193,6 +257,7 @@ class PhotoCopyManager(context: Context) {
         mimeType: String,
         mapping: AlbumMapping,
         relativePath: String,
+        sourceDateMillis: Long?,
     ): Uri {
         if (mapping.volumeName != LEGACY_PRIMARY_VOLUME && mapping.volumeName != "primary") {
             throw IOException("이 Android 버전에서는 대상 저장소를 지원하지 않습니다")
@@ -222,6 +287,7 @@ class PhotoCopyManager(context: Context) {
                     output.fd.sync()
                 }
             }
+            if (sourceDateMillis != null) destination.setLastModified(sourceDateMillis)
             return withTimeout(15_000) {
                 scanFile(destination, mimeType)
             } ?: throw IOException("복사한 사진을 갤러리에 등록할 수 없습니다")

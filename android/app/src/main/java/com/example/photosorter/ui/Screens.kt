@@ -585,7 +585,7 @@ private fun CompletionScreen(
     val copiedFiles = state.items.sumOf { it.newCopies.size }
     val skipped = state.items.count { it.status == PhotoStatus.SKIPPED }
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -593,6 +593,8 @@ private fun CompletionScreen(
             fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))
         Text("전체 ${state.items.size}장 · 분류 ${copied}장 · 복사된 파일 ${copiedFiles}개 · 건너뜀 ${skipped}장")
+        Spacer(Modifier.height(16.dp))
+        InfoCard("선택한 앨범마다 사진 파일이 새로 생깁니다. Google 포토의 '사진' 화면에도 복사본이 보일 수 있습니다. Google 포토에서 '다른 앱의 콘텐츠 표시' 설정을 확인하거나 복사본을 보관처리해 주세요.")
         Spacer(Modifier.height(24.dp))
         Button(onClick = onChoosePhotos, modifier = Modifier.fillMaxWidth()) {
             Text("새 사진 선택")
