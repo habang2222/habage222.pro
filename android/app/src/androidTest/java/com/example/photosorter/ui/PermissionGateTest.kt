@@ -32,7 +32,6 @@ class PermissionGateTest {
                 onContinue = {},
                 onRegisterAlbum = {},
                 onCreateAlbum = {},
-                onUpdateAlias = { _, _ -> },
                 onRemoveAlbum = {},
                 onSubmit = {},
                 onPrevious = {},

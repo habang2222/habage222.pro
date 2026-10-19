@@ -1,6 +1,6 @@
 package com.example.photosorter.model
 
-/** A person's shortcut to a real, local gallery album. */
+/** A registered physical gallery album; inputName is retained for saved-state migration. */
 data class AlbumMapping(
     val id: String,
     val inputName: String,
@@ -42,6 +42,8 @@ data class PhotoItem(
     val mimeType: String,
     val status: PhotoStatus = PhotoStatus.PENDING,
     val inputNames: List<String> = emptyList(),
+    /** Physical albums chosen for this photo. These survive alias edits and retries. */
+    val selectedTargets: Set<String> = emptySet(),
     /** Physical destination keys already copied successfully, including earlier sessions. */
     val completedTargets: Set<String> = emptySet(),
     /** Destination keys newly copied during this selection/session. */

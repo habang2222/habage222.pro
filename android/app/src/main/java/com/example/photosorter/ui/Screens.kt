@@ -7,13 +7,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -22,12 +23,11 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -39,26 +39,24 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.example.photosorter.model.AlbumMapping
 import com.example.photosorter.model.DeviceAlbum
-import com.example.photosorter.model.PhotoItem
 import com.example.photosorter.model.PhotoStatus
+import com.example.photosorter.model.targetKey
 import com.example.photosorter.viewmodel.SorterUiState
 
 enum class PhotoAccess { FULL, PARTIAL, DENIED }
@@ -81,9 +79,8 @@ fun PhotoSorterApp(
     onContinue: () -> Unit,
     onRegisterAlbum: (DeviceAlbum) -> Unit,
     onCreateAlbum: (String) -> Unit,
-    onUpdateAlias: (String, String) -> Unit,
     onRemoveAlbum: (String) -> Unit,
-    onSubmit: (String) -> Unit,
+    onSubmit: (Set<String>) -> Unit,
     onPrevious: () -> Unit,
     onResetSession: () -> Unit,
     onClearError: () -> Unit,
@@ -132,9 +129,7 @@ fun PhotoSorterApp(
                                 onChoosePhotos = onChoosePhotos,
                                 onContinue = onContinue,
                                 onCreateAlbum = onCreateAlbum,
-                                onUpdateAlias = onUpdateAlias,
                                 onRemoveAlbum = onRemoveAlbum,
-                                onClearError = onClearError,
                             )
                             AppScreen.ALBUMS -> AlbumScreen(
                                 state = state,
@@ -246,11 +241,8 @@ private fun HomeScreen(
     onChoosePhotos: () -> Unit,
     onContinue: () -> Unit,
     onCreateAlbum: (String) -> Unit,
-    onUpdateAlias: (String, String) -> Unit,
     onRemoveAlbum: (String) -> Unit,
-    onClearError: () -> Unit,
 ) {
-    var editing by remember { mutableStateOf<AlbumMapping?>(null) }
     var showCreate by remember { mutableStateOf(false) }
     var confirmReplace by remember { mutableStateOf(false) }
     val hasUnfinishedSession = state.items.isNotEmpty() && state.currentIndex < state.items.size
@@ -274,15 +266,14 @@ private fun HomeScreen(
         }
 
         if (state.mappings.isEmpty()) {
-            InfoCard("앨범을 추가하고 사진에 사용할 입력 이름을 확인해 주세요.")
+            InfoCard("사진을 넣을 앨범을 추가해 주세요. 사진마다 앨범 버튼을 여러 개 선택할 수 있습니다.")
         } else {
             state.mappings.forEach { mapping ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
-                        Text("${mapping.inputName} → ${mapping.albumDisplayName}",
+                        Text(mapping.albumDisplayName,
                             style = MaterialTheme.typography.titleMedium)
                         Row {
-                            TextButton(onClick = { editing = mapping }) { Text("입력 이름 수정") }
                             TextButton(onClick = { onRemoveAlbum(mapping.id) }) { Text("등록 제거") }
                         }
                     }
@@ -310,30 +301,6 @@ private fun HomeScreen(
             style = MaterialTheme.typography.bodySmall)
     }
 
-    if (editing != null) {
-        val mapping = editing!!
-        var alias by remember(mapping.id) { mutableStateOf(mapping.inputName) }
-        AlertDialog(
-            onDismissRequest = { editing = null },
-            title = { Text("입력 이름 수정") },
-            text = {
-                OutlinedTextField(
-                    value = alias,
-                    onValueChange = { alias = it },
-                    label = { Text("입력 이름") },
-                    singleLine = true,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    onClearError()
-                    onUpdateAlias(mapping.id, alias)
-                    editing = null
-                }) { Text("저장") }
-            },
-            dismissButton = { TextButton(onClick = { editing = null }) { Text("취소") } },
-        )
-    }
     if (confirmReplace) {
         AlertDialog(
             onDismissRequest = { confirmReplace = false },
@@ -469,21 +436,19 @@ private fun AlbumNameDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
 @Composable
 private fun ClassificationScreen(
     state: SorterUiState,
-    onSubmit: (String) -> Unit,
+    onSubmit: (Set<String>) -> Unit,
     onPrevious: () -> Unit,
     onClearError: () -> Unit,
 ) {
     val item = state.items[state.currentIndex]
-    val focusRequester = remember { FocusRequester() }
-    val keyboard = LocalSoftwareKeyboardController.current
-    var input by remember { mutableStateOf("") }
-    var imageFailed by remember(item.sourceUri) { mutableStateOf(false) }
-    LaunchedEffect(state.currentIndex, item.sourceUri) {
-        input = item.inputNames.joinToString(" ")
-        focusRequester.requestFocus()
-        keyboard?.show()
+    var selectedTargets by rememberSaveable(state.currentIndex, item.sourceUri) {
+        mutableStateOf(ArrayList(item.selectedTargets))
     }
-    Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 12.dp)) {
+    var imageFailed by remember(item.sourceUri) { mutableStateOf(false) }
+    val availableTargets = state.mappings.map { it.targetKey() }.toSet()
+    val missingTargets = selectedTargets.filterNot { it in availableTargets }
+    val duplicateNames = state.mappings.groupingBy { it.albumDisplayName }.eachCount()
+    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
             AsyncImage(
                 model = Uri.parse(item.sourceUri),
@@ -512,26 +477,100 @@ private fun ClassificationScreen(
                 Text("처리하는 중…")
             }
         }
-        OutlinedTextField(
-            value = input,
-            onValueChange = {
-                input = it
-                onClearError()
-            },
-            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-            enabled = !imageFailed,
-            label = { Text("사람 이름") },
-            placeholder = { Text("이름을 공백 또는 쉼표로 구분") },
-            supportingText = { Text("빈 채로 완료를 누르면 건너뜁니다.") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = {
-                if (!state.busy && !imageFailed) onSubmit(input)
-            }),
+        Text(
+            "사진을 넣을 앨범 선택",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
         )
-        if (state.currentIndex > 0) {
-            TextButton(onClick = onPrevious, enabled = !state.busy) { Text("이전 사진") }
+        Text(
+            "여러 개 선택할 수 있습니다. 앨범을 누를 때는 선택만 하고, 다음을 누르면 복사합니다.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        if (state.mappings.isEmpty()) {
+            InfoCard("등록된 앨범이 없습니다. 상단 뒤로를 누른 다음 앨범을 추가해 주세요.")
+        } else {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                state.mappings.forEach { mapping ->
+                    val target = mapping.targetKey()
+                    val isSelected = target in selectedTargets
+                    Button(
+                        onClick = {
+                            selectedTargets = ArrayList(selectedTargets).apply {
+                                if (isSelected) remove(target) else add(target)
+                            }
+                            onClearError()
+                        },
+                        enabled = !state.busy && !imageFailed,
+                        modifier = Modifier.semantics { selected = isSelected },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text((if (isSelected) "✓ " else "") + mapping.albumDisplayName)
+                            if (duplicateNames.getValue(mapping.albumDisplayName) > 1) {
+                                Text(albumLocationLabel(mapping),
+                                    style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
         }
+        if (missingTargets.isNotEmpty()) {
+            Text("이전에 선택한 앨범이 등록 목록에서 사라졌습니다.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = {
+                selectedTargets = ArrayList(selectedTargets.filter { it in availableTargets })
+                onClearError()
+            }) { Text("없는 앨범 선택 해제") }
+        }
+        if (item.completedTargets.isNotEmpty()) {
+            Text("이미 복사된 사진은 선택을 풀어도 복사본이 남습니다.",
+                style = MaterialTheme.typography.bodySmall)
+        }
+        Text("${selectedTargets.size}개 앨범 선택 · 선택하지 않으면 이 사진을 건너뜁니다.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(vertical = 6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (state.currentIndex > 0) {
+                OutlinedButton(onClick = onPrevious, enabled = !state.busy,
+                    modifier = Modifier.weight(1f)) { Text("이전 사진") }
+            }
+            Button(
+                onClick = { onSubmit(selectedTargets.toSet()) },
+                enabled = !state.busy && !imageFailed && missingTargets.isEmpty(),
+                modifier = Modifier.weight(1f),
+            ) { Text("다음") }
+        }
+    }
+}
+
+private fun albumLocationLabel(mapping: AlbumMapping): String {
+    val storage = if (mapping.volumeName in setOf("external_primary", "primary", "external")) {
+        "내장 저장소"
+    } else {
+        "외장 저장소"
+    }
+    val folders = mapping.relativePath.trim('/').split('/').filter(String::isNotBlank)
+    val parent = folders.dropLast(1).lastOrNull()
+    return if (parent.isNullOrBlank() || parent.equals("Pictures", ignoreCase = true)) {
+        storage
+    } else {
+        "$parent · $storage"
     }
 }
 

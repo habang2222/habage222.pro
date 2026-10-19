@@ -111,11 +111,7 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
                     showError("같은 저장 위치의 앨범이 이미 등록되어 있습니다.")
                     return@withLock
                 }
-                val alias = suggestedAlias(album.displayName)
-                if (saved.mappings.any { it.inputName == alias }) {
-                    showError("입력 이름 '$alias'이 이미 등록되어 있습니다. 기존 별칭을 수정한 뒤 추가해 주세요.")
-                    return@withLock
-                }
+                val alias = uniqueAlias(album.displayName)
                 val mapping = AlbumMapping(
                     id = album.id,
                     inputName = alias,
@@ -175,11 +171,7 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
                     showError("기기에 이미 있는 앨범입니다. 앨범 선택에서 등록해 주세요.")
                     return@withLock
                 }
-                val alias = suggestedAlias(clean)
-                if (saved.mappings.any { it.inputName == alias }) {
-                    showError("입력 이름 '$alias'이 이미 등록되어 있습니다. 기존 별칭을 수정한 뒤 추가해 주세요.")
-                    return@withLock
-                }
+                val alias = uniqueAlias(clean)
                 commit(saved.copy(mappings = saved.mappings + AlbumMapping(
                     id = UUID.randomUUID().toString(),
                     inputName = alias,
@@ -287,8 +279,8 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun submit(input: String) {
-        // A repeated IME/key event cannot advance two photos while one action is running.
+    fun submit(selectedTargets: Set<String>) {
+        // A repeated tap cannot advance two photos while one action is running.
         if (_state.value.busy) return
         if (!submitting.compareAndSet(false, true)) return
         val now = SystemClock.elapsedRealtime()
@@ -299,7 +291,7 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
         lastSubmitAt = now
         viewModelScope.launch {
             try {
-                mutation.withLock { submitLocked(input) }
+                mutation.withLock { submitLocked(selectedTargets) }
             } catch (error: Exception) {
                 showError("진행 기록을 저장하지 못했습니다. 저장 공간을 확인하고 다시 시도해 주세요: ${error.message.orEmpty()}")
             } finally {
@@ -309,12 +301,11 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    private suspend fun submitLocked(input: String) {
+    private suspend fun submitLocked(selectedTargets: Set<String>) {
         if (!storageReady()) return
         val index = saved.currentIndex
         val current = saved.items.getOrNull(index) ?: return
-        val names = parseNames(input)
-        if (names.isEmpty()) {
+        if (selectedTargets.isEmpty()) {
             _state.update { it.copy(busy = true, error = null) }
             val readable = withContext(Dispatchers.IO) {
                 try {
@@ -331,7 +322,8 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
             val alreadyCopied = current.completedTargets.isNotEmpty()
             val nextItem = current.copy(
                 status = if (alreadyCopied) PhotoStatus.COMPLETED else PhotoStatus.SKIPPED,
-                inputNames = if (alreadyCopied) current.inputNames else emptyList(),
+                inputNames = emptyList(),
+                selectedTargets = emptySet(),
                 errorMessage = null,
             )
             commit(saved.copy(
@@ -340,19 +332,23 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
             ))
             return
         }
-        val mappingByName = saved.mappings.associateBy { it.inputName }
-        val missing = names.filterNot { it in mappingByName }
+        val mappingsByTarget = saved.mappings.associateBy { it.targetKey() }
+        val missing = selectedTargets.filterNot { it in mappingsByTarget }
         if (missing.isNotEmpty()) {
-            showError("등록되지 않은 이름: ${missing.joinToString(", ")}")
+            showError("선택한 앨범 중 등록이 해제된 항목이 있습니다. 이전 화면에서 앨범을 다시 등록해 주세요.")
             return
         }
+        val selectedMappings = saved.mappings.filter { it.targetKey() in selectedTargets }
         _state.update { it.copy(busy = true, error = null) }
-        var item = current.copy(status = PhotoStatus.PENDING, inputNames = names,
-            errorMessage = null)
+        var item = current.copy(
+            status = PhotoStatus.PENDING,
+            inputNames = selectedMappings.map { it.inputName },
+            selectedTargets = selectedTargets,
+            errorMessage = null,
+        )
         replaceItem(index, item)
         persist()
-        for (name in names) {
-            val mapping = mappingByName.getValue(name)
+        for (mapping in selectedMappings) {
             val target = mapping.targetKey()
             if (target in item.completedTargets) continue
             try {
@@ -367,7 +363,7 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
                 persist() // Preserve each successful target before attempting the next.
             } catch (error: Exception) {
                 item = item.copy(status = PhotoStatus.ERROR,
-                    errorMessage = "'$name' 앨범에 복사하지 못했습니다: ${error.message.orEmpty()}")
+                    errorMessage = "'${mapping.albumDisplayName}' 앨범에 복사하지 못했습니다: ${error.message.orEmpty()}")
                 replaceItem(index, item)
                 persist()
                 showError(item.errorMessage.orEmpty())
@@ -459,6 +455,16 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
     private fun suggestedAlias(albumName: String): String = albumName.trim()
         .replace(Regex("\\s+\\d{1,2}월$"), "")
         .replace(Regex("[,\\s]+"), "_")
+
+    /** Keep the legacy alias field unique without making it a user-facing requirement. */
+    private fun uniqueAlias(albumName: String): String {
+        val base = suggestedAlias(albumName).ifBlank { "앨범" }
+        val used = saved.mappings.map { it.inputName }.toSet()
+        if (base !in used) return base
+        var suffix = 2
+        while ("${base}_$suffix" in used) suffix++
+        return "${base}_$suffix"
+    }
 
     companion object {
         fun parseNames(input: String): List<String> = input.trim()

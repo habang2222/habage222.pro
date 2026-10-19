@@ -134,9 +134,8 @@ class MainActivity : ComponentActivity() {
                 onContinue = { screen = AppScreen.CLASSIFY.name },
                 onRegisterAlbum = { album -> sorter.addAlbum(album) },
                 onCreateAlbum = { name -> sorter.createAlbum(name) },
-                onUpdateAlias = { id, alias -> sorter.updateAlias(id, alias) },
                 onRemoveAlbum = { id -> sorter.removeAlbum(id) },
-                onSubmit = { input -> sorter.submit(input) },
+                onSubmit = { targets -> sorter.submit(targets) },
                 onPrevious = { sorter.previous() },
                 onResetSession = {
                     sorter.resetSession()

@@ -42,7 +42,7 @@ class StateStore(context: Context) {
     }
 
     private fun encode(data: SorterData): String = JSONObject().apply {
-        put("version", 3)
+        put("version", 4)
         put("currentIndex", data.currentIndex)
         put("copyLedger", JSONObject().apply {
             data.copyLedger.forEach { (sourceUri, targetIds) ->
@@ -70,6 +70,7 @@ class StateStore(context: Context) {
                     put("mimeType", item.mimeType)
                     put("status", item.status.name)
                     put("inputNames", JSONArray(item.inputNames))
+                    put("selectedTargets", JSONArray(item.selectedTargets.toList()))
                     put("completedTargets", JSONArray(item.completedTargets.toList()))
                     put("newCopies", JSONArray(item.newCopies.toList()))
                     put("errorMessage", item.errorMessage ?: JSONObject.NULL)
@@ -81,7 +82,7 @@ class StateStore(context: Context) {
     private fun decode(json: String): SorterData {
         val root = JSONObject(json)
         val version = root.getInt("version")
-        if (version !in 1..3) {
+        if (version !in 1..4) {
             throw IOException("지원되지 않는 저장 데이터 버전입니다")
         }
 
@@ -102,17 +103,24 @@ class StateStore(context: Context) {
         }
         val legacyIds = mappings.associate { it.id to it.targetKey() }
         fun targetKeys(values: List<String>): Set<String> = values.map { legacyIds[it] ?: it }.toSet()
+        val targetByAlias = mappings.associate { it.inputName to it.targetKey() }
 
         val itemsArray = root.getJSONArray("items")
         val items = buildList(itemsArray.length()) {
             for (index in 0 until itemsArray.length()) {
                 val value = itemsArray.getJSONObject(index)
+                val inputNames = value.getJSONArray("inputNames").strings()
                 add(PhotoItem(
                     sourceUri = value.getString("sourceUri"),
                     displayName = value.getString("displayName"),
                     mimeType = value.getString("mimeType"),
                     status = PhotoStatus.valueOf(value.getString("status")),
-                    inputNames = value.getJSONArray("inputNames").strings(),
+                    inputNames = inputNames,
+                    selectedTargets = if (version >= 4) {
+                        targetKeys(value.optJSONArray("selectedTargets")?.strings().orEmpty())
+                    } else {
+                        inputNames.mapNotNull(targetByAlias::get).toSet()
+                    },
                     completedTargets = targetKeys(value.getJSONArray("completedTargets").strings()),
                     newCopies = if (version >= 3) {
                         targetKeys(value.optJSONArray("newCopies")?.strings().orEmpty())
