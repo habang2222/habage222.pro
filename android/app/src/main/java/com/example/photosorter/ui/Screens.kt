@@ -612,7 +612,7 @@ private fun CompletionScreen(
         Spacer(Modifier.height(16.dp))
         Text("전체 ${state.items.size}장 · 분류 ${copied}장 · 복사된 파일 ${copiedFiles}개 · 건너뜀 ${skipped}장")
         Spacer(Modifier.height(16.dp))
-        InfoCard("Google 포토에서 기기 복사본을 삭제하면 갤러리 앨범의 같은 파일도 사라집니다. 사진 화면에서만 치우려면 복사본을 보관처리해 주세요.")
+        InfoCard("이미 분류한 사진을 Google 포토의 '사진' 화면에서만 숨기려면 원본과 복사본을 모두 보관처리하세요. 기기 앨범의 파일은 남습니다.")
         OutlinedButton(onClick = onGooglePhotosHelp, modifier = Modifier.fillMaxWidth()) {
             Text("Google 포토 정리 방법")
         }
@@ -636,7 +636,7 @@ private fun GooglePhotosHelpDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Google 포토 사진 정리") },
+        title = { Text("분류한 사진 숨기기") },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
@@ -647,13 +647,11 @@ private fun GooglePhotosHelpDialog(
                     color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text("사진 화면에서만 숨기는 방법")
-                Text("1. Google 포토의 '사진' 화면에서 상단에 몰린 사진 하나를 엽니다.")
-                Text("2. ⋮ → 정보 또는 세부정보에서 폴더 이름을 확인합니다. 분류 앨범에 있는 사진인지 보세요. 원본도 같은 폴더에 있을 수 있으므로 구별이 안 되면 선택하지 마세요.")
-                Text("3. 뒤로 돌아와 복사본만 길게 눌러 선택합니다. 여러 장을 고를 때도 원본이 섞이지 않게 확인하세요.")
-                Text("4. 위쪽 ⋮ → 보관처리를 누릅니다. '사진' 화면에서 빠지고 기기 앨범에는 남습니다. 나중에 컬렉션 → 보관 파일에서 찾을 수 있습니다.")
-                Text("Google 포토에 '다른 앱의 콘텐츠 표시' 설정이 보이면 이 앱의 콘텐츠를 숨기는 방법도 있습니다. 메뉴 이름과 위치는 기기와 앱 버전에 따라 다를 수 있습니다.")
-                Text("아래 버튼으로 Google 포토를 연 뒤 복사본을 직접 보관처리하세요.")
+                Text("1. Google 포토 '사진'에서 처리한 사진을 열고 ⋮ → 정보에서 폴더를 확인합니다.")
+                Text("2. 뒤로 돌아와 사진을 길게 눌러 선택합니다. 화면에서 모두 치우려면 원본과 분류 폴더의 복사본을 모두 고르세요.")
+                Text("3. ⋮ → 보관처리를 누릅니다. 기기 폴더의 파일은 남고 '사진' 화면에서만 사라집니다.")
+                Text("복사본만 고르면 원본은 계속 보입니다. 보관한 사진은 컬렉션 → 보관 파일에서 찾거나 보관 취소할 수 있습니다.")
+                Text("Google 포토 보관 상태는 이 앱에서 대신 바꿀 수 없습니다. 아래 버튼으로 Google 포토를 열어 진행하세요.")
             }
         },
         confirmButton = {
