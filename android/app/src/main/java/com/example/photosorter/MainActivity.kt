@@ -1,12 +1,14 @@
 package com.example.photosorter
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -116,6 +118,20 @@ class MainActivity : ComponentActivity() {
                         Uri.parse("package:$packageName")
                     ))
                 },
+                onOpenGooglePhotos = {
+                    val launchIntent = packageManager.getLaunchIntentForPackage(GOOGLE_PHOTOS_PACKAGE)
+                    if (launchIntent == null) {
+                        Toast.makeText(this, "Google 포토 앱을 찾지 못했습니다.", Toast.LENGTH_LONG).show()
+                    } else {
+                        try {
+                            startActivity(launchIntent)
+                        } catch (_: ActivityNotFoundException) {
+                            Toast.makeText(this, "Google 포토 앱을 열 수 없습니다.", Toast.LENGTH_LONG).show()
+                        } catch (_: SecurityException) {
+                            Toast.makeText(this, "Google 포토 앱을 열 수 없습니다.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
                 onNavigateHome = { screen = AppScreen.HOME.name },
                 onOpenAlbums = {
                     if (access == PhotoAccess.DENIED) {
@@ -178,5 +194,9 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE
         )
+    }
+
+    companion object {
+        private const val GOOGLE_PHOTOS_PACKAGE = "com.google.android.apps.photos"
     }
 }

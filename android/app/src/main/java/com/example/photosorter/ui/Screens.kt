@@ -73,6 +73,7 @@ fun PhotoSorterApp(
     onReviewPermission: () -> Unit,
     onPermissionLater: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenGooglePhotos: () -> Unit,
     onNavigateHome: () -> Unit,
     onOpenAlbums: () -> Unit,
     onChoosePhotos: () -> Unit,
@@ -85,6 +86,7 @@ fun PhotoSorterApp(
     onResetSession: () -> Unit,
     onClearError: () -> Unit,
 ) {
+    var showGooglePhotosHelp by rememberSaveable { mutableStateOf(false) }
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             if (showPermissionGate) {
@@ -128,6 +130,7 @@ fun PhotoSorterApp(
                                 onOpenSettings = onOpenSettings,
                                 onChoosePhotos = onChoosePhotos,
                                 onContinue = onContinue,
+                                onGooglePhotosHelp = { showGooglePhotosHelp = true },
                                 onCreateAlbum = onCreateAlbum,
                                 onRemoveAlbum = onRemoveAlbum,
                             )
@@ -152,6 +155,7 @@ fun PhotoSorterApp(
                                     onChoosePhotos = onChoosePhotos,
                                     onPrevious = onPrevious,
                                     onResetSession = onResetSession,
+                                    onGooglePhotosHelp = { showGooglePhotosHelp = true },
                                 )
                                 else -> ClassificationScreen(
                                     state = state,
@@ -163,6 +167,15 @@ fun PhotoSorterApp(
                         }
                     }
                 }
+            }
+            if (showGooglePhotosHelp) {
+                GooglePhotosHelpDialog(
+                    onDismiss = { showGooglePhotosHelp = false },
+                    onOpenGooglePhotos = {
+                        showGooglePhotosHelp = false
+                        onOpenGooglePhotos()
+                    },
+                )
             }
         }
     }
@@ -240,6 +253,7 @@ private fun HomeScreen(
     onOpenSettings: () -> Unit,
     onChoosePhotos: () -> Unit,
     onContinue: () -> Unit,
+    onGooglePhotosHelp: () -> Unit,
     onCreateAlbum: (String) -> Unit,
     onRemoveAlbum: (String) -> Unit,
 ) {
@@ -299,6 +313,9 @@ private fun HomeScreen(
         ) { Text("사진 선택하기") }
         Text("사진 선택에는 전체 갤러리 접근 권한이 필요하지 않습니다.",
             style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = onGooglePhotosHelp, modifier = Modifier.fillMaxWidth()) {
+            Text("Google 포토 정리 방법")
+        }
     }
 
     if (confirmReplace) {
@@ -580,6 +597,7 @@ private fun CompletionScreen(
     onChoosePhotos: () -> Unit,
     onPrevious: () -> Unit,
     onResetSession: () -> Unit,
+    onGooglePhotosHelp: () -> Unit,
 ) {
     val copied = state.items.count { it.status == PhotoStatus.COMPLETED }
     val copiedFiles = state.items.sumOf { it.newCopies.size }
@@ -594,8 +612,11 @@ private fun CompletionScreen(
         Spacer(Modifier.height(16.dp))
         Text("전체 ${state.items.size}장 · 분류 ${copied}장 · 복사된 파일 ${copiedFiles}개 · 건너뜀 ${skipped}장")
         Spacer(Modifier.height(16.dp))
-        InfoCard("선택한 앨범마다 사진 파일이 새로 생깁니다. Google 포토의 '사진' 화면에도 복사본이 보일 수 있습니다. Google 포토에서 '다른 앱의 콘텐츠 표시' 설정을 확인하거나 복사본을 보관처리해 주세요.")
-        Spacer(Modifier.height(24.dp))
+        InfoCard("Google 포토에서 기기 복사본을 삭제하면 갤러리 앨범의 같은 파일도 사라집니다. 사진 화면에서만 치우려면 복사본을 보관처리해 주세요.")
+        OutlinedButton(onClick = onGooglePhotosHelp, modifier = Modifier.fillMaxWidth()) {
+            Text("Google 포토 정리 방법")
+        }
+        Spacer(Modifier.height(12.dp))
         Button(onClick = onChoosePhotos, modifier = Modifier.fillMaxWidth()) {
             Text("새 사진 선택")
         }
@@ -606,6 +627,42 @@ private fun CompletionScreen(
             Text("앨범 화면으로")
         }
     }
+}
+
+@Composable
+private fun GooglePhotosHelpDialog(
+    onDismiss: () -> Unit,
+    onOpenGooglePhotos: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Google 포토 사진 정리") },
+        text = {
+            Column(
+                modifier = Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "Google 포토에서 기기 복사본을 삭제하면 갤러리 앨범의 같은 파일도 삭제됩니다. 앨범에 남겨둘 사진은 삭제하지 마세요.",
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text("사진 화면에서만 숨기는 방법")
+                Text("1. Google 포토의 '사진' 화면에서 상단에 몰린 사진 하나를 엽니다.")
+                Text("2. ⋮ → 정보 또는 세부정보에서 폴더 이름을 확인합니다. 분류 앨범에 있는 사진인지 보세요. 원본도 같은 폴더에 있을 수 있으므로 구별이 안 되면 선택하지 마세요.")
+                Text("3. 뒤로 돌아와 복사본만 길게 눌러 선택합니다. 여러 장을 고를 때도 원본이 섞이지 않게 확인하세요.")
+                Text("4. 위쪽 ⋮ → 보관처리를 누릅니다. '사진' 화면에서 빠지고 기기 앨범에는 남습니다. 나중에 컬렉션 → 보관 파일에서 찾을 수 있습니다.")
+                Text("Google 포토에 '다른 앱의 콘텐츠 표시' 설정이 보이면 이 앱의 콘텐츠를 숨기는 방법도 있습니다. 메뉴 이름과 위치는 기기와 앱 버전에 따라 다를 수 있습니다.")
+                Text("아래 버튼으로 Google 포토를 연 뒤 복사본을 직접 보관처리하세요.")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onOpenGooglePhotos) { Text("Google 포토 열기") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("닫기") }
+        },
+    )
 }
 
 @Composable
