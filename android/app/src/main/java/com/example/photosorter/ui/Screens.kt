@@ -636,22 +636,24 @@ private fun GooglePhotosHelpDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("분류한 사진 숨기기") },
+        title = { Text("Google 포토에 복사본이 보일 때") },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                Text("이 앱은 선택한 삼성 갤러리 폴더마다 사진을 복사하고 원본도 남깁니다. Google 포토도 그 파일을 읽어서 같은 사진이 여러 장 보일 수 있습니다.")
+                Text("앞으로 생길 복사본 숨기기", fontWeight = FontWeight.SemiBold)
+                Text("Google 포토에 '비슷한 사진' 묶음이 보이면 묶음을 열어 아래쪽 작은 사진의 더보기(점 세 개) → 설정 관리 → 앱별 맞춤설정 → 사진 이름별 분류 → 모두 숨기기를 확인하세요. 사진 화면 맨 위의 더보기와는 다른 메뉴입니다.")
+                Text("이 메뉴가 없거나 복사본에 적용되지 않으면 자동 숨기기는 사용할 수 없습니다. 앱별 숨기기는 원본 사진까지 숨기지 않을 수도 있습니다.")
+                Text("이미 보이는 사진을 직접 보관하려면", fontWeight = FontWeight.SemiBold)
+                Text("Google 포토에서 사진을 길게 눌러 선택한 뒤 더보기(점 세 개) → 보관처리를 누릅니다. 원본까지 화면에서 치우려면 원본과 복사본을 모두 선택해야 합니다. 기기 폴더의 파일은 남습니다.")
                 Text(
-                    "Google 포토에서 기기 복사본을 삭제하면 갤러리 앨범의 같은 파일도 삭제됩니다. 앨범에 남겨둘 사진은 삭제하지 마세요.",
+                    "Google 포토에서 복사본을 삭제하면 삼성 갤러리 폴더의 같은 파일도 삭제됩니다.",
                     color = MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text("1. Google 포토 '사진'에서 처리한 사진을 열고 ⋮ → 정보에서 폴더를 확인합니다.")
-                Text("2. 뒤로 돌아와 사진을 길게 눌러 선택합니다. 화면에서 모두 치우려면 원본과 분류 폴더의 복사본을 모두 고르세요.")
-                Text("3. ⋮ → 보관처리를 누릅니다. 기기 폴더의 파일은 남고 '사진' 화면에서만 사라집니다.")
-                Text("복사본만 고르면 원본은 계속 보입니다. 보관한 사진은 컬렉션 → 보관 파일에서 찾거나 보관 취소할 수 있습니다.")
-                Text("Google 포토 보관 상태는 이 앱에서 대신 바꿀 수 없습니다. 아래 버튼으로 Google 포토를 열어 진행하세요.")
+                Text("이 앱에 Google 포토의 보관 상태를 변경하는 권한은 없습니다.")
             }
         },
         confirmButton = {
