@@ -27,7 +27,8 @@
         <nav class="manual-jump" aria-label="설명서 목차">
           <a href="#install-steps">① 앱 설치하기</a>
           <a href="#use-steps">② 사진 분류하기</a>
-          <a href="#troubleshooting">③ 막힐 때 보기</a>
+          <a href="#gallery-albums">③ 삼성 갤러리 앨범 보기</a>
+          <a href="#troubleshooting">④ 막힐 때 보기</a>
         </nav>
       </section>
 
@@ -130,9 +131,24 @@
         </ol>
       </section>
 
+      <section class="manual-section" id="gallery-albums" aria-labelledby="gallery-heading">
+        <div class="manual-section-heading">
+          <p class="eyebrow">세 번째 · 분류 결과 보기</p>
+          <h2 id="gallery-heading">삼성 갤러리의 ‘앨범’에서 확인하기</h2>
+          <p>사진 분류가 끝나면 <strong>삼성 갤러리의 앨범 탭</strong>에서 폴더별 결과를 보세요. 원본은 원래 폴더에 남고, 선택한 앨범마다 복사본이 한 장씩 들어갑니다.</p>
+        </div>
+        <ol class="steps">
+          <li><span class="step-number">01</span><div><h3>삼성 갤러리 열기</h3><p>분류 앱의 홈 또는 완료 화면에서 <strong>삼성 갤러리 열기</strong>를 누르세요. 갤러리가 열리지 않으면 휴대전화 앱 목록에서 <strong>갤러리</strong>를 직접 여세요.</p></div></li>
+          <li><span class="step-number">02</span><div><h3>‘앨범’ 누르기</h3><p>삼성 갤러리가 열리면 화면 아래쪽의 <strong>앨범</strong> 탭을 누르세요. 기종과 One UI 버전에 따라 탭 위치나 표시가 다를 수 있습니다.</p></div></li>
+          <li><span class="step-number">03</span><div><h3>앨범 이름 확인하기</h3><p>분류 앱에서 선택했던 <strong>앨범 이름</strong>을 눌러 복사된 사진을 보세요. 여러 앨범을 선택했다면 각 앨범에 복사본이 하나씩 있습니다.</p></div></li>
+        </ol>
+        <figure class="help-screenshot"><img src="images/guide/screenshots/samsung-gallery-button.png" alt="실제 분류 앱 홈의 삼성 갤러리 열기 버튼과 앨범 탭 안내 문구" width="1080" height="2400" loading="lazy" decoding="async"><figcaption>‘삼성 갤러리 열기’ 버튼이 보이는 실제 분류 앱 화면입니다. Android 15 시험 기기에서 캡처했습니다.</figcaption><a class="image-zoom" href="images/guide/screenshots/samsung-gallery-button.png">실제 화면 크게 보기 ↗</a></figure>
+        <div class="manual-notice"><strong>전체 사진 화면은 다르게 보일 수 있습니다.</strong> 삼성 갤러리의 <strong>사진</strong> 탭과 Google 포토의 <strong>사진</strong> 화면은 여러 폴더의 원본과 복사본을 한곳에 모아 보여 줄 수 있습니다. 삼성 갤러리의 <strong>앨범</strong> 탭을 쓰면 폴더별로 볼 수 있지만 Google 포토 화면의 복사본이 자동으로 사라지지는 않습니다. 삼성 갤럭시 화면은 이 설명서의 에뮬레이터 캡처와 다를 수 있습니다. <a href="https://www.samsung.com/us/support/answer/ANS10002535/">삼성 공식 갤러리 안내(영어)</a></div>
+      </section>
+
       <section class="manual-section trouble-section" id="troubleshooting" aria-labelledby="trouble-heading">
         <div class="manual-section-heading">
-          <p class="eyebrow">세 번째 · 막힐 때</p>
+          <p class="eyebrow">네 번째 · 막힐 때</p>
           <h2 id="trouble-heading">화면에 나온 문구부터 확인하세요</h2>
           <p>설치가 멈췄다고 무조건 개발자 모드를 켜지 마세요. 아래에서 <strong>실제로 보이는 문구</strong>와 같은 항목을 여세요.</p>
         </div>
@@ -183,6 +199,7 @@
             <summary id="google-photos-copies">Google 포토 맨 위에 복사본이 계속 쌓여요</summary>
             <div>
               <p>이 앱은 <strong>원본을 남기고 선택한 앨범마다 사진 한 장씩 복사</strong>합니다. 앨범 두 곳을 고르면 원본 한 장과 복사본 두 장이 Google 포토의 <strong>사진</strong> 화면에 함께 보일 수 있습니다. 사진에 촬영 날짜 정보가 없으면 새 복사본이 맨 위에 나타날 수도 있습니다. 고장이나 한 앨범에 여러 번 복사된 것인지 확인하려면 사진을 열고 <strong>⋮ → 정보</strong>의 <strong>세부정보</strong>에서 폴더 이름을 보세요.</p>
+              <p><strong>폴더별로 사진을 보고 싶다면</strong> 위 <a href="#gallery-albums">삼성 갤러리 앨범 보기</a>를 따라하세요. 갤러리의 <strong>앨범</strong> 탭에서 각 폴더를 따로 열 수 있습니다. 삼성 갤러리로 보는 방식은 Google 포토의 <strong>사진</strong> 화면을 바꾸지 않습니다.</p>
               <p><strong>삭제하면 어떻게 되나요?</strong> Google 포토 앱에서 사진을 휴지통에 넣으면 휴대전화의 같은 사진 파일도 삭제됩니다. 분류해 둔 앨범의 복사본을 삭제하면 그 앨범에서도 사라집니다. 앨범을 유지하면서 위쪽 사진 화면만 정리하려면 <strong>삭제 대신 아래의 숨기기 또는 보관처리</strong>를 사용하세요. <a href="https://support.google.com/photos/answer/6128858?co=GENIE.Platform%3DAndroid&amp;hl=ko">Google 포토 삭제 안내</a></p>
               <figure class="help-screenshot"><img src="images/guide/screenshots/google-photos-help.png" alt="실제 사진 분류 앱에서 Google 포토 정리 방법 버튼을 눌렀을 때 나타나는 앱별 숨기기와 보관처리 안내 화면" width="1080" height="2400" loading="lazy" decoding="async"><figcaption>앱 홈이나 분류 완료 화면의 ‘Google 포토 정리 방법’을 누르면 이 안내가 열립니다. Android 15 시험 기기에서 직접 캡처한 앱 화면입니다.</figcaption><a class="image-zoom" href="images/guide/screenshots/google-photos-help.png">실제 화면 크게 보기 ↗</a></figure>
               <p><strong>앞으로 생길 복사본을 한 번의 설정으로 숨기려면</strong> Google 포토에 아래 설정이 있는지 확인하세요. 사진 화면 <strong>맨 위의 점 세 개가 아니라, 비슷한 사진 묶음을 연 뒤 아래쪽 작은 사진의 점 세 개</strong>에서 시작합니다. 앱 버전에 따라 이 메뉴가 없을 수 있습니다.</p>

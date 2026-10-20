@@ -132,6 +132,20 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 },
+                onOpenSamsungGallery = {
+                    val launchIntent = packageManager.getLaunchIntentForPackage(SAMSUNG_GALLERY_PACKAGE)
+                    if (launchIntent == null) {
+                        Toast.makeText(this, "삼성 갤러리 앱을 찾지 못했습니다.", Toast.LENGTH_LONG).show()
+                    } else {
+                        try {
+                            startActivity(launchIntent)
+                        } catch (_: ActivityNotFoundException) {
+                            Toast.makeText(this, "삼성 갤러리를 열 수 없습니다.", Toast.LENGTH_LONG).show()
+                        } catch (_: SecurityException) {
+                            Toast.makeText(this, "삼성 갤러리를 열 수 없습니다.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
                 onNavigateHome = { screen = AppScreen.HOME.name },
                 onOpenAlbums = {
                     if (access == PhotoAccess.DENIED) {
@@ -198,5 +212,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val GOOGLE_PHOTOS_PACKAGE = "com.google.android.apps.photos"
+        private const val SAMSUNG_GALLERY_PACKAGE = "com.sec.android.gallery3d"
     }
 }

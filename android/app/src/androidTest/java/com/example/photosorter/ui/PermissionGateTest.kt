@@ -27,6 +27,7 @@ class PermissionGateTest {
                 onPermissionLater = {},
                 onOpenSettings = {},
                 onOpenGooglePhotos = {},
+                onOpenSamsungGallery = {},
                 onNavigateHome = {},
                 onOpenAlbums = {},
                 onChoosePhotos = {},

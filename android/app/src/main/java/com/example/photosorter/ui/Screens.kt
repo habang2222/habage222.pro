@@ -74,6 +74,7 @@ fun PhotoSorterApp(
     onPermissionLater: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenGooglePhotos: () -> Unit,
+    onOpenSamsungGallery: () -> Unit,
     onNavigateHome: () -> Unit,
     onOpenAlbums: () -> Unit,
     onChoosePhotos: () -> Unit,
@@ -130,6 +131,7 @@ fun PhotoSorterApp(
                                 onOpenSettings = onOpenSettings,
                                 onChoosePhotos = onChoosePhotos,
                                 onContinue = onContinue,
+                                onOpenSamsungGallery = onOpenSamsungGallery,
                                 onGooglePhotosHelp = { showGooglePhotosHelp = true },
                                 onCreateAlbum = onCreateAlbum,
                                 onRemoveAlbum = onRemoveAlbum,
@@ -155,6 +157,7 @@ fun PhotoSorterApp(
                                     onChoosePhotos = onChoosePhotos,
                                     onPrevious = onPrevious,
                                     onResetSession = onResetSession,
+                                    onOpenSamsungGallery = onOpenSamsungGallery,
                                     onGooglePhotosHelp = { showGooglePhotosHelp = true },
                                 )
                                 else -> ClassificationScreen(
@@ -253,6 +256,7 @@ private fun HomeScreen(
     onOpenSettings: () -> Unit,
     onChoosePhotos: () -> Unit,
     onContinue: () -> Unit,
+    onOpenSamsungGallery: () -> Unit,
     onGooglePhotosHelp: () -> Unit,
     onCreateAlbum: (String) -> Unit,
     onRemoveAlbum: (String) -> Unit,
@@ -313,7 +317,12 @@ private fun HomeScreen(
         ) { Text("사진 선택하기") }
         Text("사진 선택에는 전체 갤러리 접근 권한이 필요하지 않습니다.",
             style = MaterialTheme.typography.bodySmall)
-        OutlinedButton(onClick = onGooglePhotosHelp, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = onOpenSamsungGallery, modifier = Modifier.fillMaxWidth()) {
+            Text("삼성 갤러리 열기")
+        }
+        Text("갤러리가 열린 뒤 화면 아래 '앨범' 탭을 누르세요. 복사한 사진은 선택한 앨범에 있습니다.",
+            style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = onGooglePhotosHelp, modifier = Modifier.fillMaxWidth()) {
             Text("Google 포토 정리 방법")
         }
     }
@@ -597,6 +606,7 @@ private fun CompletionScreen(
     onChoosePhotos: () -> Unit,
     onPrevious: () -> Unit,
     onResetSession: () -> Unit,
+    onOpenSamsungGallery: () -> Unit,
     onGooglePhotosHelp: () -> Unit,
 ) {
     val copied = state.items.count { it.status == PhotoStatus.COMPLETED }
@@ -612,8 +622,13 @@ private fun CompletionScreen(
         Spacer(Modifier.height(16.dp))
         Text("전체 ${state.items.size}장 · 분류 ${copied}장 · 복사된 파일 ${copiedFiles}개 · 건너뜀 ${skipped}장")
         Spacer(Modifier.height(16.dp))
-        InfoCard("이미 분류한 사진을 Google 포토의 '사진' 화면에서만 숨기려면 원본과 복사본을 모두 보관처리하세요. 기기 앨범의 파일은 남습니다.")
-        OutlinedButton(onClick = onGooglePhotosHelp, modifier = Modifier.fillMaxWidth()) {
+        InfoCard("복사한 사진은 삼성 갤러리에서 폴더별로 볼 수 있습니다. 갤러리가 열린 뒤 화면 아래 '앨범' 탭을 누르세요.")
+        OutlinedButton(onClick = onOpenSamsungGallery, modifier = Modifier.fillMaxWidth()) {
+            Text("삼성 갤러리 열기")
+        }
+        Text("삼성 갤러리의 '사진' 목록과 Google 포토에는 원본과 복사본이 함께 보일 수 있습니다.",
+            style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = onGooglePhotosHelp, modifier = Modifier.fillMaxWidth()) {
             Text("Google 포토 정리 방법")
         }
         Spacer(Modifier.height(12.dp))
