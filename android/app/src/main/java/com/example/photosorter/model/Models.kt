@@ -55,6 +55,8 @@ data class SorterData(
     val mappings: List<AlbumMapping> = emptyList(),
     val items: List<PhotoItem> = emptyList(),
     val currentIndex: Int = 0,
-    /** Best-effort duplicate protection when the same picker URI is selected in another session. */
+    /** Best-effort duplicate protection for a source selected in another session. */
     val copyLedger: Map<String, Set<String>> = emptyMap(),
+    /** MediaStore URIs created by this app, for the in-app gallery's processed-photo filter. */
+    val createdCopyUris: Set<String> = emptySet(),
 )

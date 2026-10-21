@@ -1,7 +1,6 @@
 package com.example.photosorter.viewmodel
 
 import android.app.Application
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
@@ -10,6 +9,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.photosorter.data.StateStore
 import com.example.photosorter.media.MediaStoreAlbumReader
+import com.example.photosorter.media.LocalGalleryAlbum
+import com.example.photosorter.media.LocalGalleryPhoto
+import com.example.photosorter.media.LocalGalleryReader
 import com.example.photosorter.media.PhotoCopyManager
 import com.example.photosorter.media.PhotoMetadataReader
 import com.example.photosorter.model.AlbumMapping
@@ -39,12 +41,26 @@ data class SorterUiState(
     val busy: Boolean = false,
     val loadingAlbums: Boolean = false,
     val error: String? = null,
+    val gallery: LocalGalleryUiState = LocalGalleryUiState(),
+)
+
+data class LocalGalleryUiState(
+    val albums: List<LocalGalleryAlbum> = emptyList(),
+    val photos: List<LocalGalleryPhoto> = emptyList(),
+    val currentAlbumKey: String? = null,
+    val selectedUris: Set<String> = emptySet(),
+    val showProcessed: Boolean = false,
+    val loading: Boolean = false,
+    val loadingMore: Boolean = false,
+    val hasMore: Boolean = false,
+    val error: String? = null,
 )
 
 class PhotoSorterViewModel(application: Application) : AndroidViewModel(application) {
     private val appContext = application.applicationContext
     private val store = StateStore(appContext)
     private val albumReader = MediaStoreAlbumReader(appContext)
+    private val galleryReader = LocalGalleryReader(appContext)
     private val metadataReader = PhotoMetadataReader(appContext)
     private val copyManager = PhotoCopyManager(appContext)
     private val mutation = Mutex()
@@ -52,6 +68,7 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
     private var lastSubmitAt = 0L
     private var saved = SorterData()
     private var storageHealthy = true
+    private var galleryGeneration = 0
 
     private val _state = MutableStateFlow(SorterUiState())
     val state: StateFlow<SorterUiState> = _state.asStateFlow()
@@ -89,6 +106,163 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
     }
+
+    /** Read the same on-device image collection that gallery apps index. */
+    fun refreshLocalGallery() {
+        val generation = ++galleryGeneration
+        val previous = _state.value.gallery
+        val hiddenUris = processedGalleryUris()
+        _state.update {
+            it.copy(gallery = it.gallery.copy(
+                photos = emptyList(), loading = true, loadingMore = false,
+                hasMore = false, error = null,
+            ))
+        }
+        viewModelScope.launch {
+            try {
+                val albums = galleryReader.listAlbums(previous.showProcessed, hiddenUris)
+                val readableSelection = withContext(Dispatchers.IO) {
+                    previous.selectedUris.filterTo(mutableSetOf()) { uri ->
+                        runCatching {
+                            appContext.contentResolver.openFileDescriptor(Uri.parse(uri), "r")
+                                ?.use { true } ?: false
+                        }.getOrDefault(false)
+                    }
+                }
+                val albumKey = previous.currentAlbumKey?.takeIf { key ->
+                    albums.any { it.key == key }
+                }
+                val page = albumKey?.let {
+                    galleryReader.listPhotos(it, 0, GALLERY_PAGE_SIZE,
+                        previous.showProcessed, hiddenUris)
+                }
+                if (generation != galleryGeneration) return@launch
+                _state.update { state ->
+                    state.copy(gallery = state.gallery.copy(
+                        albums = albums,
+                        currentAlbumKey = albumKey,
+                        photos = page?.photos.orEmpty(),
+                        hasMore = page?.hasMore ?: false,
+                        selectedUris = readableSelection,
+                        loading = false,
+                    ))
+                }
+            } catch (error: Exception) {
+                if (generation != galleryGeneration) return@launch
+                _state.update { state ->
+                    state.copy(gallery = state.gallery.copy(
+                        albums = emptyList(), photos = emptyList(), loading = false,
+                        hasMore = false,
+                        error = "휴대전화 사진을 불러오지 못했습니다. 사진 접근 권한을 확인해 주세요: ${error.message.orEmpty()}",
+                    ))
+                }
+            }
+        }
+    }
+
+    fun openLocalGalleryAlbum(albumKey: String) {
+        if (_state.value.gallery.albums.none { it.key == albumKey }) return
+        val generation = ++galleryGeneration
+        val showProcessed = _state.value.gallery.showProcessed
+        val hiddenUris = processedGalleryUris()
+        _state.update { state ->
+            state.copy(gallery = state.gallery.copy(
+                currentAlbumKey = albumKey, photos = emptyList(), loading = true,
+                loadingMore = false, hasMore = false, error = null,
+            ))
+        }
+        viewModelScope.launch {
+            try {
+                val page = galleryReader.listPhotos(albumKey, 0, GALLERY_PAGE_SIZE,
+                    showProcessed, hiddenUris)
+                if (generation != galleryGeneration) return@launch
+                _state.update { state ->
+                    state.copy(gallery = state.gallery.copy(
+                        photos = page.photos, hasMore = page.hasMore, loading = false,
+                    ))
+                }
+            } catch (error: Exception) {
+                if (generation != galleryGeneration) return@launch
+                _state.update { state ->
+                    state.copy(gallery = state.gallery.copy(
+                        photos = emptyList(), loading = false,
+                        error = "앨범 사진을 불러오지 못했습니다: ${error.message.orEmpty()}",
+                    ))
+                }
+            }
+        }
+    }
+
+    fun backToLocalGalleryAlbums() {
+        galleryGeneration++
+        _state.update { state ->
+            state.copy(gallery = state.gallery.copy(
+                currentAlbumKey = null, photos = emptyList(), loading = false,
+                loadingMore = false, hasMore = false, error = null,
+            ))
+        }
+    }
+
+    fun toggleLocalGalleryPhoto(uri: String) {
+        if (_state.value.gallery.photos.none { it.uri == uri }) return
+        _state.update { state ->
+            val selected = state.gallery.selectedUris
+            state.copy(gallery = state.gallery.copy(
+                selectedUris = if (uri in selected) selected - uri else selected + uri,
+            ))
+        }
+    }
+
+    fun toggleLocalGalleryProcessed() {
+        _state.update { state ->
+            state.copy(gallery = state.gallery.copy(
+                showProcessed = !state.gallery.showProcessed,
+                selectedUris = emptySet(),
+            ))
+        }
+        refreshLocalGallery()
+    }
+
+    fun loadMoreLocalGalleryPhotos() {
+        val current = _state.value.gallery
+        val key = current.currentAlbumKey ?: return
+        if (current.loading || current.loadingMore || !current.hasMore) return
+        val generation = galleryGeneration
+        val hiddenUris = processedGalleryUris()
+        _state.update { state ->
+            state.copy(gallery = state.gallery.copy(loadingMore = true, error = null))
+        }
+        viewModelScope.launch {
+            try {
+                val page = galleryReader.listPhotos(key, current.photos.size, GALLERY_PAGE_SIZE,
+                    current.showProcessed, hiddenUris)
+                if (generation != galleryGeneration) return@launch
+                _state.update { state ->
+                    state.copy(gallery = state.gallery.copy(
+                        photos = state.gallery.photos + page.photos,
+                        hasMore = page.hasMore,
+                        loadingMore = false,
+                    ))
+                }
+            } catch (error: Exception) {
+                if (generation != galleryGeneration) return@launch
+                _state.update { state ->
+                    state.copy(gallery = state.gallery.copy(
+                        loadingMore = false,
+                        error = "사진을 더 불러오지 못했습니다: ${error.message.orEmpty()}",
+                    ))
+                }
+            }
+        }
+    }
+
+    fun clearLocalGallery() {
+        galleryGeneration++
+        _state.update { it.copy(gallery = LocalGalleryUiState()) }
+    }
+
+    private fun processedGalleryUris(): Set<String> =
+        saved.copyLedger.filterValues { it.isNotEmpty() }.keys + saved.createdCopyUris
 
     fun addAlbum(album: DeviceAlbum) {
         viewModelScope.launch {
@@ -239,7 +413,7 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
 
     fun selectPhotos(uris: List<Uri>) {
         if (uris.isEmpty()) return
-        // The picker callback navigates immediately. Hide the previous session before the
+        // The gallery action navigates immediately. Hide the previous session before the
         // coroutine starts so it cannot be displayed or submitted as the new selection.
         _state.update { it.copy(items = emptyList(), currentIndex = 0, busy = true, error = null) }
         viewModelScope.launch {
@@ -252,15 +426,6 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
                 try {
                     val items = withContext(Dispatchers.IO) {
                         uris.distinct().map { uri ->
-                            try {
-                                appContext.contentResolver.takePersistableUriPermission(
-                                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                )
-                            } catch (_: SecurityException) {
-                                // Some picker providers only grant access for this session.
-                            } catch (_: IllegalArgumentException) {
-                                // The provider did not offer a persistable grant.
-                            }
                             metadataReader.read(uri).copy(
                                 completedTargets = saved.copyLedger[uri.toString()].orEmpty()
                             )
@@ -268,6 +433,7 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
                     }
                     saved = saved.copy(items = items, currentIndex = 0)
                     persist()
+                    _state.update { it.copy(gallery = it.gallery.copy(selectedUris = emptySet())) }
                 } catch (error: Exception) {
                     saved = previousSession
                     publish()
@@ -352,13 +518,16 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
             val target = mapping.targetKey()
             if (target in item.completedTargets) continue
             try {
-                withContext(Dispatchers.IO) { copyManager.copy(item, mapping) }
+                val destination = withContext(Dispatchers.IO) { copyManager.copy(item, mapping) }
                 item = item.copy(
                     completedTargets = item.completedTargets + target,
                     newCopies = item.newCopies + target,
                 )
-                saved = saved.copy(copyLedger = saved.copyLedger +
-                    (item.sourceUri to (saved.copyLedger[item.sourceUri].orEmpty() + target)))
+                saved = saved.copy(
+                    copyLedger = saved.copyLedger +
+                        (item.sourceUri to (saved.copyLedger[item.sourceUri].orEmpty() + target)),
+                    createdCopyUris = saved.createdCopyUris + destination.toString(),
+                )
                 replaceItem(index, item)
                 persist() // Preserve each successful target before attempting the next.
             } catch (error: Exception) {
@@ -467,6 +636,8 @@ class PhotoSorterViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     companion object {
+        private const val GALLERY_PAGE_SIZE = 120
+
         fun parseNames(input: String): List<String> = input.trim()
             .split(Regex("[,\\s]+"))
             .filter(String::isNotEmpty)

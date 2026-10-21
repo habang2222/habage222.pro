@@ -12,7 +12,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -44,6 +43,7 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(access == PhotoAccess.DENIED)
             }
             var openAlbumsAfterPermission by rememberSaveable { mutableStateOf(false) }
+            var openGalleryAfterPermission by rememberSaveable { mutableStateOf(false) }
             var permissionWasRequested by rememberSaveable { mutableStateOf(false) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
@@ -56,15 +56,12 @@ class MainActivity : ComponentActivity() {
                         screen = AppScreen.ALBUMS.name
                         openAlbumsAfterPermission = false
                     }
+                    if (openGalleryAfterPermission) {
+                        screen = AppScreen.GALLERY.name
+                        openGalleryAfterPermission = false
+                    }
                     if (screen == AppScreen.ALBUMS.name) sorter.refreshAlbums()
-                }
-            }
-            val photoPicker = rememberLauncherForActivityResult(
-                ActivityResultContracts.PickMultipleVisualMedia()
-            ) { uris ->
-                if (uris.isNotEmpty()) {
-                    sorter.selectPhotos(uris)
-                    screen = AppScreen.CLASSIFY.name
+                    if (screen == AppScreen.GALLERY.name) sorter.refreshLocalGallery()
                 }
             }
 
@@ -79,14 +76,26 @@ class MainActivity : ComponentActivity() {
                             openAlbumsAfterPermission = false
                             showPermissionGate = false
                         }
-                        if (current == PhotoAccess.DENIED && screen == AppScreen.ALBUMS.name) {
+                        if (current != PhotoAccess.DENIED && openGalleryAfterPermission) {
+                            screen = AppScreen.GALLERY.name
+                            openGalleryAfterPermission = false
+                            showPermissionGate = false
+                        }
+                        if (current == PhotoAccess.DENIED &&
+                            (screen == AppScreen.ALBUMS.name || screen == AppScreen.GALLERY.name)
+                        ) {
                             screen = AppScreen.HOME.name
+                            sorter.clearLocalGallery()
                         } else if (current != PhotoAccess.DENIED &&
                             screen == AppScreen.ALBUMS.name
                         ) {
                             // The user may have changed the selected photo set without
                             // changing the PARTIAL permission state.
                             sorter.refreshAlbums()
+                        } else if (current != PhotoAccess.DENIED &&
+                            screen == AppScreen.GALLERY.name
+                        ) {
+                            sorter.refreshLocalGallery()
                         }
                     }
                 }
@@ -111,26 +120,13 @@ class MainActivity : ComponentActivity() {
                 onPermissionLater = {
                     showPermissionGate = false
                     openAlbumsAfterPermission = false
+                    openGalleryAfterPermission = false
                 },
                 onOpenSettings = {
                     startActivity(Intent(
                         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.parse("package:$packageName")
                     ))
-                },
-                onOpenGooglePhotos = {
-                    val launchIntent = packageManager.getLaunchIntentForPackage(GOOGLE_PHOTOS_PACKAGE)
-                    if (launchIntent == null) {
-                        Toast.makeText(this, "Google 포토 앱을 찾지 못했습니다.", Toast.LENGTH_LONG).show()
-                    } else {
-                        try {
-                            startActivity(launchIntent)
-                        } catch (_: ActivityNotFoundException) {
-                            Toast.makeText(this, "Google 포토 앱을 열 수 없습니다.", Toast.LENGTH_LONG).show()
-                        } catch (_: SecurityException) {
-                            Toast.makeText(this, "Google 포토 앱을 열 수 없습니다.", Toast.LENGTH_LONG).show()
-                        }
-                    }
                 },
                 onOpenSamsungGallery = {
                     val launchIntent = packageManager.getLaunchIntentForPackage(SAMSUNG_GALLERY_PACKAGE)
@@ -157,9 +153,25 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 onChoosePhotos = {
-                    photoPicker.launch(PickVisualMediaRequest(
-                        ActivityResultContracts.PickVisualMedia.ImageOnly
-                    ))
+                    if (access == PhotoAccess.DENIED) {
+                        openGalleryAfterPermission = true
+                        showPermissionGate = true
+                    } else {
+                        screen = AppScreen.GALLERY.name
+                        sorter.refreshLocalGallery()
+                    }
+                },
+                onOpenGalleryAlbum = { key -> sorter.openLocalGalleryAlbum(key) },
+                onBackToGalleryAlbums = { sorter.backToLocalGalleryAlbums() },
+                onToggleGalleryPhoto = { uri -> sorter.toggleLocalGalleryPhoto(uri) },
+                onToggleGalleryProcessed = { sorter.toggleLocalGalleryProcessed() },
+                onLoadMoreGalleryPhotos = { sorter.loadMoreLocalGalleryPhotos() },
+                onConfirmGallerySelection = {
+                    val selected = sorter.state.value.gallery.selectedUris.map(Uri::parse)
+                    if (selected.isNotEmpty()) {
+                        sorter.selectPhotos(selected)
+                        screen = AppScreen.CLASSIFY.name
+                    }
                 },
                 onContinue = { screen = AppScreen.CLASSIFY.name },
                 onRegisterAlbum = { album -> sorter.addAlbum(album) },
@@ -211,7 +223,6 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        private const val GOOGLE_PHOTOS_PACKAGE = "com.google.android.apps.photos"
         private const val SAMSUNG_GALLERY_PACKAGE = "com.sec.android.gallery3d"
     }
 }

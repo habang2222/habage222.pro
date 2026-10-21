@@ -42,13 +42,14 @@ class StateStore(context: Context) {
     }
 
     private fun encode(data: SorterData): String = JSONObject().apply {
-        put("version", 4)
+        put("version", 5)
         put("currentIndex", data.currentIndex)
         put("copyLedger", JSONObject().apply {
             data.copyLedger.forEach { (sourceUri, targetIds) ->
                 put(sourceUri, JSONArray(targetIds.toList()))
             }
         })
+        put("createdCopyUris", JSONArray(data.createdCopyUris.toList()))
         put("mappings", JSONArray().apply {
             data.mappings.forEach { mapping ->
                 put(JSONObject().apply {
@@ -82,7 +83,7 @@ class StateStore(context: Context) {
     private fun decode(json: String): SorterData {
         val root = JSONObject(json)
         val version = root.getInt("version")
-        if (version !in 1..4) {
+        if (version !in 1..5) {
             throw IOException("지원되지 않는 저장 데이터 버전입니다")
         }
 
@@ -153,6 +154,9 @@ class StateStore(context: Context) {
             items = items,
             currentIndex = root.getInt("currentIndex").coerceIn(0, items.size),
             copyLedger = copyLedger,
+            createdCopyUris = if (version >= 5) {
+                root.optJSONArray("createdCopyUris")?.strings().orEmpty().toSet()
+            } else emptySet(),
         )
     }
 

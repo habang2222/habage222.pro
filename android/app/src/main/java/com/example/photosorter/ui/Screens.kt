@@ -60,7 +60,7 @@ import com.example.photosorter.model.targetKey
 import com.example.photosorter.viewmodel.SorterUiState
 
 enum class PhotoAccess { FULL, PARTIAL, DENIED }
-enum class AppScreen { HOME, ALBUMS, CLASSIFY }
+enum class AppScreen { HOME, ALBUMS, GALLERY, CLASSIFY }
 
 @Composable
 fun PhotoSorterApp(
@@ -73,11 +73,16 @@ fun PhotoSorterApp(
     onReviewPermission: () -> Unit,
     onPermissionLater: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenGooglePhotos: () -> Unit,
     onOpenSamsungGallery: () -> Unit,
     onNavigateHome: () -> Unit,
     onOpenAlbums: () -> Unit,
     onChoosePhotos: () -> Unit,
+    onOpenGalleryAlbum: (String) -> Unit,
+    onBackToGalleryAlbums: () -> Unit,
+    onToggleGalleryPhoto: (String) -> Unit,
+    onToggleGalleryProcessed: () -> Unit,
+    onLoadMoreGalleryPhotos: () -> Unit,
+    onConfirmGallerySelection: () -> Unit,
     onContinue: () -> Unit,
     onRegisterAlbum: (DeviceAlbum) -> Unit,
     onCreateAlbum: (String) -> Unit,
@@ -87,7 +92,6 @@ fun PhotoSorterApp(
     onResetSession: () -> Unit,
     onClearError: () -> Unit,
 ) {
-    var showGooglePhotosHelp by rememberSaveable { mutableStateOf(false) }
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             if (showPermissionGate) {
@@ -98,18 +102,27 @@ fun PhotoSorterApp(
                     onSettings = onOpenSettings,
                 )
             } else {
-                BackHandler(enabled = screen != AppScreen.HOME) { onNavigateHome() }
+                val backAction = when {
+                    screen == AppScreen.HOME -> null
+                    screen == AppScreen.GALLERY && state.gallery.currentAlbumKey != null ->
+                        onBackToGalleryAlbums
+                    else -> onNavigateHome
+                }
+                BackHandler(enabled = backAction != null) { backAction?.invoke() }
                 Scaffold(
                     topBar = {
                         Header(
                             title = when (screen) {
                                 AppScreen.HOME -> "등록된 앨범"
                                 AppScreen.ALBUMS -> "앨범 선택"
+                                AppScreen.GALLERY -> state.gallery.currentAlbumKey?.let { key ->
+                                    state.gallery.albums.firstOrNull { it.key == key }?.displayName
+                                } ?: "휴대전화 사진 앨범"
                                 AppScreen.CLASSIFY -> if (state.items.isNotEmpty())
                                     "${(state.currentIndex + 1).coerceAtMost(state.items.size)} / ${state.items.size}"
                                 else "사진 분류"
                             },
-                            onBack = if (screen == AppScreen.HOME) null else onNavigateHome,
+                            onBack = backAction,
                         )
                     }
                 ) { innerPadding ->
@@ -132,7 +145,6 @@ fun PhotoSorterApp(
                                 onChoosePhotos = onChoosePhotos,
                                 onContinue = onContinue,
                                 onOpenSamsungGallery = onOpenSamsungGallery,
-                                onGooglePhotosHelp = { showGooglePhotosHelp = true },
                                 onCreateAlbum = onCreateAlbum,
                                 onRemoveAlbum = onRemoveAlbum,
                             )
@@ -150,6 +162,18 @@ fun PhotoSorterApp(
                                     onNavigateHome()
                                 },
                             )
+                            AppScreen.GALLERY -> LocalGalleryScreen(
+                                state = state.gallery,
+                                access = access,
+                                onOpenAlbum = onOpenGalleryAlbum,
+                                onBackToAlbums = onBackToGalleryAlbums,
+                                onTogglePhoto = onToggleGalleryPhoto,
+                                onToggleShowProcessed = onToggleGalleryProcessed,
+                                onLoadMore = onLoadMoreGalleryPhotos,
+                                onConfirmSelection = onConfirmGallerySelection,
+                                onReviewPermission = onReviewPermission,
+                                onOpenSettings = onOpenSettings,
+                            )
                             AppScreen.CLASSIFY -> when {
                                 state.items.isEmpty() -> LoadingSelection(state.busy)
                                 state.currentIndex >= state.items.size -> CompletionScreen(
@@ -158,7 +182,6 @@ fun PhotoSorterApp(
                                     onPrevious = onPrevious,
                                     onResetSession = onResetSession,
                                     onOpenSamsungGallery = onOpenSamsungGallery,
-                                    onGooglePhotosHelp = { showGooglePhotosHelp = true },
                                 )
                                 else -> ClassificationScreen(
                                     state = state,
@@ -170,15 +193,6 @@ fun PhotoSorterApp(
                         }
                     }
                 }
-            }
-            if (showGooglePhotosHelp) {
-                GooglePhotosHelpDialog(
-                    onDismiss = { showGooglePhotosHelp = false },
-                    onOpenGooglePhotos = {
-                        showGooglePhotosHelp = false
-                        onOpenGooglePhotos()
-                    },
-                )
             }
         }
     }
@@ -221,7 +235,7 @@ private fun PermissionGate(
             fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))
         Text(
-            "휴대폰에 저장된 앨범을 앱 안에서 보여주고, 분류한 사진을 해당 앨범에 복사하려면 사진 접근 권한이 필요합니다. 원본 사진은 수정하거나 삭제하지 않습니다.",
+            "휴대폰에 저장된 사진과 앨범을 앱 안에서 보여주고, 분류한 사진을 해당 앨범에 복사하려면 사진 접근 권한이 필요합니다. 원본 사진은 수정하거나 삭제하지 않습니다.",
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(Modifier.height(12.dp))
@@ -257,7 +271,6 @@ private fun HomeScreen(
     onChoosePhotos: () -> Unit,
     onContinue: () -> Unit,
     onOpenSamsungGallery: () -> Unit,
-    onGooglePhotosHelp: () -> Unit,
     onCreateAlbum: (String) -> Unit,
     onRemoveAlbum: (String) -> Unit,
 ) {
@@ -271,7 +284,7 @@ private fun HomeScreen(
     ) {
         when (access) {
             PhotoAccess.DENIED -> InfoCard(
-                "앨범을 보려면 사진 접근 권한이 필요합니다. 사진 선택기는 지금도 사용할 수 있습니다."
+                "휴대전화 사진과 앨범을 보려면 사진 접근 권한이 필요합니다."
             )
             PhotoAccess.PARTIAL -> {
                 InfoCard("선택한 사진에 해당하는 앨범만 보일 수 있습니다.")
@@ -314,17 +327,14 @@ private fun HomeScreen(
                 if (hasUnfinishedSession) confirmReplace = true else onChoosePhotos()
             },
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("사진 선택하기") }
-        Text("사진 선택에는 전체 갤러리 접근 권한이 필요하지 않습니다.",
+        ) { Text("휴대전화 갤러리에서 사진 고르기") }
+        Text("앱 안에서 휴대전화의 실제 앨범을 보여줍니다. 일부 사진만 허용했다면 그 사진만 보입니다.",
             style = MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick = onOpenSamsungGallery, modifier = Modifier.fillMaxWidth()) {
             Text("삼성 갤러리 열기")
         }
         Text("갤러리가 열린 뒤 화면 아래 '앨범' 탭을 누르세요. 복사한 사진은 선택한 앨범에 있습니다.",
             style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = onGooglePhotosHelp, modifier = Modifier.fillMaxWidth()) {
-            Text("Google 포토 정리 방법")
-        }
     }
 
     if (confirmReplace) {
@@ -607,7 +617,6 @@ private fun CompletionScreen(
     onPrevious: () -> Unit,
     onResetSession: () -> Unit,
     onOpenSamsungGallery: () -> Unit,
-    onGooglePhotosHelp: () -> Unit,
 ) {
     val copied = state.items.count { it.status == PhotoStatus.COMPLETED }
     val copiedFiles = state.items.sumOf { it.newCopies.size }
@@ -626,14 +635,11 @@ private fun CompletionScreen(
         OutlinedButton(onClick = onOpenSamsungGallery, modifier = Modifier.fillMaxWidth()) {
             Text("삼성 갤러리 열기")
         }
-        Text("삼성 갤러리의 '사진' 목록과 Google 포토에는 원본과 복사본이 함께 보일 수 있습니다.",
+        Text("갤러리의 전체 사진 목록에는 원본과 복사본이 함께 보일 수 있습니다.",
             style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = onGooglePhotosHelp, modifier = Modifier.fillMaxWidth()) {
-            Text("Google 포토 정리 방법")
-        }
         Spacer(Modifier.height(12.dp))
         Button(onClick = onChoosePhotos, modifier = Modifier.fillMaxWidth()) {
-            Text("새 사진 선택")
+            Text("휴대전화 갤러리에서 더 고르기")
         }
         OutlinedButton(onClick = onPrevious, modifier = Modifier.fillMaxWidth()) {
             Text("이전 사진")
@@ -642,42 +648,6 @@ private fun CompletionScreen(
             Text("앨범 화면으로")
         }
     }
-}
-
-@Composable
-private fun GooglePhotosHelpDialog(
-    onDismiss: () -> Unit,
-    onOpenGooglePhotos: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Google 포토에 복사본이 보일 때") },
-        text = {
-            Column(
-                modifier = Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("이 앱은 선택한 삼성 갤러리 폴더마다 사진을 복사하고 원본도 남깁니다. Google 포토도 그 파일을 읽어서 같은 사진이 여러 장 보일 수 있습니다.")
-                Text("앞으로 생길 복사본 숨기기", fontWeight = FontWeight.SemiBold)
-                Text("Google 포토에 '비슷한 사진' 묶음이 보이면 묶음을 열어 아래쪽 작은 사진의 더보기(점 세 개) → 설정 관리 → 앱별 맞춤설정 → 사진 이름별 분류 → 모두 숨기기를 확인하세요. 사진 화면 맨 위의 더보기와는 다른 메뉴입니다.")
-                Text("이 메뉴가 없거나 복사본에 적용되지 않으면 자동 숨기기는 사용할 수 없습니다. 앱별 숨기기는 원본 사진까지 숨기지 않을 수도 있습니다.")
-                Text("이미 보이는 사진을 직접 보관하려면", fontWeight = FontWeight.SemiBold)
-                Text("Google 포토에서 사진을 길게 눌러 선택한 뒤 더보기(점 세 개) → 보관처리를 누릅니다. 원본까지 화면에서 치우려면 원본과 복사본을 모두 선택해야 합니다. 기기 폴더의 파일은 남습니다.")
-                Text(
-                    "Google 포토에서 복사본을 삭제하면 삼성 갤러리 폴더의 같은 파일도 삭제됩니다.",
-                    color = MaterialTheme.colorScheme.error,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text("이 앱에 Google 포토의 보관 상태를 변경하는 권한은 없습니다.")
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onOpenGooglePhotos) { Text("Google 포토 열기") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("닫기") }
-        },
-    )
 }
 
 @Composable

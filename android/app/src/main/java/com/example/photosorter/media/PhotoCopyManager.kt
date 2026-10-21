@@ -95,8 +95,7 @@ class PhotoCopyManager(context: Context) {
             ?: throw IOException("이 앨범에는 저장 가능한 로컬 사진 위치가 없습니다")
         val extension = extensionForMime(item.mimeType)
         val fileName = safePhotoFileName(item.displayName, extension)
-        // Photo Picker URIs do not always expose dates. When they do, carry the
-        // source's gallery date to copies whose image bytes contain no EXIF date.
+        // Carry the source gallery date to copies whose bytes contain no EXIF date.
         val sourceDateMillis = sourceGalleryDateMillis(sourceUri)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -106,7 +105,7 @@ class PhotoCopyManager(context: Context) {
         }
     }
 
-    /** MediaStore dates are provider metadata, so a picker may legitimately omit them. */
+    /** MediaStore dates are provider metadata, so a source may omit them. */
     private fun sourceGalleryDateMillis(sourceUri: Uri): Long? {
         val taken = queryPositiveDate(sourceUri, MediaStore.Images.ImageColumns.DATE_TAKEN)
         if (taken != null) return taken
@@ -128,7 +127,7 @@ class PhotoCopyManager(context: Context) {
         null
     }
 
-    /** Some picker providers expose the actual local file only through the read descriptor. */
+    /** Some providers expose the actual local file only through the read descriptor. */
     private fun sourceFileDateMillis(uri: Uri): Long? = runCatching {
         appContext.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
             val stat = Os.fstat(descriptor.fileDescriptor)
