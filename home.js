@@ -4,7 +4,10 @@ const illustrations = [
   "images/home/button-sleep.png",
   "images/home/button-breathe-a.png",
   "images/home/button-breathe-b.png",
-  "images/home/button-octopus.png"
+  "images/home/button-octopus.png",
+  "images/home/button-star.png",
+  "images/home/button-sunglasses.png",
+  "images/home/button-thumbs-up.png"
 ];
 
 function shuffledIllustrations() {
@@ -112,16 +115,8 @@ function createCard(link) {
     tags.append(label);
   }
 
-  const open = document.createElement("span");
-  open.className = "card-open";
-  const openLabel = document.createElement("span");
-  openLabel.textContent = link.external ? "새 창에서 열기" : "열기";
-  const arrow = document.createElement("span");
-  arrow.setAttribute("aria-hidden", "true");
-  arrow.textContent = "↗";
-  open.append(openLabel, arrow);
-
-  card.append(artwork, title, tags, open);
+  if (link.external) card.setAttribute("aria-label", `${link.title}, 새 창에서 열기`);
+  card.append(artwork, title, tags);
   return card;
 }
 
