@@ -10,8 +10,7 @@ window.HABANG_LINKS = [
     title: "GitHub 저장소",
     url: "https://github.com/habang2222/habage222.pro",
     tags: ["code", "github"]
-  }
-],
+  },
   {
     title: "개발 블로그",
     url: "https://habang2222.github.io/",
