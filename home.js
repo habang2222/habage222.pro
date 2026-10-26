@@ -32,8 +32,6 @@ const links = source.flatMap((entry, index) => {
     : [];
   return [{
     title: entry.title.trim(),
-    description: typeof entry.description === "string" ? entry.description.trim() : "",
-    category: typeof entry.category === "string" ? entry.category.trim() : "LINK",
     url: destination.href,
     external: destination.origin !== window.location.origin,
     tags,
@@ -102,15 +100,8 @@ function createCard(link) {
   image.loading = "lazy";
   artwork.append(image);
 
-  const category = document.createElement("p");
-  category.className = "card-meta";
-  category.textContent = link.category;
-
   const title = document.createElement("h3");
   title.textContent = link.title;
-  const description = document.createElement("p");
-  description.className = "card-description";
-  description.textContent = link.description;
 
   const tags = document.createElement("div");
   tags.className = "card-tags";
@@ -124,13 +115,13 @@ function createCard(link) {
   const open = document.createElement("span");
   open.className = "card-open";
   const openLabel = document.createElement("span");
-  openLabel.textContent = link.external ? "새 창에서 열기" : "보러 가기";
+  openLabel.textContent = link.external ? "새 창에서 열기" : "열기";
   const arrow = document.createElement("span");
   arrow.setAttribute("aria-hidden", "true");
   arrow.textContent = "↗";
   open.append(openLabel, arrow);
 
-  card.append(artwork, category, title, description, tags, open);
+  card.append(artwork, title, tags, open);
   return card;
 }
 
@@ -138,7 +129,7 @@ function render() {
   const query = normalized(searchInput.value);
   const visible = links.filter(link => {
     const matchesTag = !selectedTag || link.tags.includes(selectedTag);
-    const searchable = normalized([link.title, link.description, link.category, ...link.tags].join(" "));
+    const searchable = normalized([link.title, ...link.tags].join(" "));
     return matchesTag && (!query || searchable.includes(query));
   });
 

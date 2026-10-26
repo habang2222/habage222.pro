@@ -4,38 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#8bdedc">
-  <meta name="description" content="habang222가 만든 것과 모아 둔 링크를 검색하고 태그로 찾아보세요.">
+  <meta name="description" content="habang222 링크 모음">
   <title>habang222 | 링크 모음</title>
-  <link rel="stylesheet" href="home.css">
-  <script src="links.js" defer></script>
-  <script src="home.js" defer></script>
+  <link rel="stylesheet" href="home.css?v=3">
+  <script src="links.js?v=3" defer></script>
+  <script src="home.js?v=3" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#link-list">링크 목록으로 건너뛰기</a>
 
   <header class="home-hero">
     <div class="hero-content">
-      <p class="hero-kicker">MY LITTLE LINK SPACE</p>
       <h1>habang222</h1>
-      <p class="hero-intro">만든 것과 마음에 드는 링크를 모아 두었어요.</p>
-      <a class="hero-jump" href="#links">링크 둘러보기 <span aria-hidden="true">↓</span></a>
     </div>
   </header>
 
   <main class="home-main" id="links">
-    <div class="section-heading">
-      <div>
-        <p class="section-kicker">EXPLORE</p>
-        <h2>링크 찾아보기</h2>
-      </div>
-      <p class="section-description">검색하거나 태그를 눌러 원하는 링크를 골라 보세요.</p>
-    </div>
-
     <div class="search-area" role="search">
       <label for="link-search">검색</label>
       <div class="search-field">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="2"/><path d="m16 16 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <input id="link-search" type="search" placeholder="이름, 설명, 태그로 검색" autocomplete="off">
+        <input id="link-search" type="search" placeholder="검색" autocomplete="off">
       </div>
     </div>
 
@@ -44,9 +33,9 @@
       <div class="tag-filters" id="tag-filters" aria-label="태그로 링크 필터링"></div>
     </div>
 
-    <p class="result-count" id="result-count" role="status" aria-live="polite"></p>
+    <p class="sr-only" id="result-count" role="status" aria-live="polite"></p>
     <div class="link-grid" id="link-list"></div>
-    <p class="empty-state" id="empty-state" hidden>찾는 링크가 없어요. 검색어나 태그를 바꿔 보세요.</p>
+    <p class="empty-state" id="empty-state" hidden>검색 결과 없음</p>
 
     <noscript>
       <p class="noscript-note">검색과 태그를 사용하려면 JavaScript를 켜 주세요. <a href="photo-sorter.html">사진 빠른 분류 앱 보기</a></p>
