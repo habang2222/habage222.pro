@@ -1,0 +1,17 @@
+{
+  "description": "Pinned packages and installer integrity checks for habang222.pro",
+  "sources": {
+    "MGlogWH": "5cb573ac5402ca7580fb4c8e0a3f30576a5d38d2",
+    "MGlogWH-ControlRoom": "5f67113e7f9eea9c12d3105f42ae137723ab2c3e",
+    "cu-lms-lecture-alarm": "v2.2.0",
+    "random-password-backspace": "f64bdb1393717bda9787c3060b78565f1d9f9aa1"
+  },
+  "sha256": {
+    "LectureAlarm-Setup.cmd": "78fc2f6097710d57f0461035c10f87646887b3bb6fa6117006407ea01fda3a54",
+    "MGlogWH-Setup.cmd": "62d06688beea9adc91d016710d68afb3fbc6d7cb62f9d05c6e708e69a3fcf248",
+    "RandomBackspace-Setup.cmd": "46481303e829a1e8ec2acdd71da8a6588bad96837fa3ded52276e65f34020fb0",
+    "cu-lms-lecture-alarm-v2.2.0.zip": "cfe3528280187fdf13a12b699c9152089c24c5bbc508eda3c8f16f8197ec5cf0",
+    "install-mglogwh.sh": "45c3f04f1ad23603cf11a370f988c27ecdcfef3e858cc3c848586086c659f88f",
+    "random-password-backspace-f64bdb1.zip": "386333398a06e1e302e45a48c7d3360ba95e83365d0e36c262ff7d3d7dad27a2"
+  }
+}

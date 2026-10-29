@@ -65,8 +65,14 @@ a { color: inherit; }
   text-decoration: none;
 }
 .card-art { display: flex; align-items: center; justify-content: center; width: 100%; height: 250px; margin-bottom: 18px; }
+.card-open { display: flex; flex-direction: column; align-items: center; width: 100%; text-decoration: none; }
+.card-description { margin: 0 0 15px; max-width: 32ch; color: #245355; font-size: 15px; word-break: keep-all; }
+.card-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; margin-top: auto; padding-top: 20px; }
+.card-download { padding: 11px 17px; border-radius: 12px; background: #165e65; color: white; text-decoration: none; font-size: 13px; font-weight: 800; }
+.card-download:hover { background: #104b51; }
+.card-guide { font-size: 13px; font-weight: 800; text-underline-offset: 4px; }
 .card-art img { display: block; width: 100%; height: 100%; object-fit: contain; transition: transform .22s ease, filter .22s ease; }
-.link-card:hover .card-art img, .link-card:focus-visible .card-art img { transform: scale(1.055); filter: brightness(.96) drop-shadow(0 12px 12px #174b5055); }
+.card-open:hover .card-art img, .card-open:focus-visible .card-art img { transform: scale(1.055); filter: brightness(.96) drop-shadow(0 12px 12px #174b5055); }
 .link-card h3 { margin: 0 0 9px; font-size: 23px; letter-spacing: -.045em; line-height: 1.35; word-break: keep-all; }
 .card-tags { display: flex; justify-content: center; flex-wrap: wrap; gap: 5px 12px; }
 .card-tag { color: #205659; font-size: 13px; font-weight: 800; }
