@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eaf7f4">
+  <meta name="description" content="비밀번호 입력창의 Backspace가 1~3글자를 무작위로 지우도록 하는 Chrome 확장 프로그램. 설치 파일과 사용·설정 방법을 제공합니다.">
+  <title>랜덤 백스페이스 설치 | habang222</title>
+  <link rel="stylesheet" href="install.css?v=1">
+</head>
+<body><div class="shell">
+  <header class="topbar"><a class="brand" href="/">habang222</a><a class="back" href="/#links">← 모든 도구</a></header>
+  <main>
+    <section class="intro" aria-labelledby="page-title"><div>
+      <p class="eyebrow">RANDOM PASSWORD BACKSPACE</p>
+      <h1 id="page-title">백스페이스 한 번,<br><span>삭제는 무작위로.</span></h1>
+      <p class="lead">비밀번호 입력창에서 Backspace를 누르면 바로 앞의 1~3글자를 무작위로 지웁니다. 입력창 옆에 실제 삭제 수를 표시하고, 일반 검색창이나 텍스트 입력창은 평소대로 사용할 수 있습니다.</p>
+      <div class="badges"><span class="badge">Google Chrome</span><span class="badge">비밀번호 입력창 전용</span><span class="badge">실험용 도구</span></div>
+      <div class="actions"><a class="button" href="downloads/RandomBackspace-Setup.cmd" download>Windows 설치 도우미 받기 ↓</a><a class="button secondary" href="downloads/random-password-backspace-f64bdb1.zip" download>ZIP 직접 받기 · 모든 OS</a></div>
+      <p class="fine">Windows 도우미가 파일 다운로드·압축 해제와 설치 화면 열기를 처리합니다. Chrome 확장 등록은 직접 확인해야 합니다. macOS·Linux에서는 ZIP을 사용하세요.</p>
+    </div><figure class="art"><img src="images/home/button-sunglasses.png" alt="" width="320" height="280"><figcaption>실제 삭제 수는 입력창 옆에서 확인</figcaption></figure></section>
+    <section class="panel" aria-labelledby="features-title"><h2 id="features-title">비밀번호를 입력할 때만 동작합니다.</h2><div class="features">
+      <div><h3>1~3글자 무작위 삭제</h3><p>커서 앞의 글자를 지우고 실제 삭제 수를 알려줍니다. 남은 글자가 적으면 남은 만큼만 삭제합니다.</p></div>
+      <div><h3>필요할 때 켜고 끄기</h3><p>확장 아이콘에서 기능과 알림을 각각 켜고 끕니다. 알림 표시 시간은 300~5000ms로 조절합니다.</p></div>
+      <div><h3>기기 안에서 처리</h3><p>비밀번호나 키 입력 이력을 저장·전송하지 않습니다. 저장되는 것은 기능과 알림 설정뿐입니다.</p></div>
+    </div><p class="note">키 소리·진동으로 입력을 추정하는 관찰자에게 삭제 수의 불확실성을 더하려는 실험입니다. 실제 방어 효과는 검증되지 않았으며, 무작위 삭제로 입력이 불편해질 수 있습니다.</p></section>
+    <section class="panel" aria-labelledby="install-title"><h2 id="install-title">도우미로 준비하고, Chrome에서 등록하세요.</h2><ol class="steps">
+      <li><strong>설치 도우미 다운로드·실행</strong><p>Windows에서 <code>RandomBackspace-Setup.cmd</code>를 더블클릭합니다. 확장 파일을 고정 폴더에 풀고, 해당 폴더와 Chrome 확장 관리 화면을 엽니다. 관리자 권한은 필요하지 않습니다.</p></li>
+      <li><strong>개발자 모드 켜기</strong><p><code>chrome://extensions/</code>에서 오른쪽 위 <strong>개발자 모드</strong>를 켜고 <strong>압축해제된 확장 프로그램을 로드합니다</strong>를 누릅니다.</p></li>
+      <li><strong>확장 폴더 선택</strong><p>도우미가 보여 준 경로를 붙여 넣고 <code>manifest.json</code>이 들어 있는 폴더를 선택하세요. 도우미는 경로를 클립보드에도 복사합니다. 직접 받은 ZIP은 압축을 푼 폴더를 선택합니다.</p></li>
+      <li><strong>웹페이지 새로고침</strong><p>열려 있던 페이지를 새로고침하세요. 비밀번호 입력창에 시험용 문자열을 입력하고 Backspace를 누르면 삭제 개수 알림이 나타납니다. 실제 비밀번호를 제출하기 전에는 입력 내용을 다시 확인하세요.</p></li>
+    </ol><p class="fine">배포 기준: f64bdb1. 설치 도우미의 보관 위치는 <code>%LOCALAPPDATA%\HabangTools\random-backspace\f64bdb1</code>입니다. 등록한 폴더는 삭제하거나 이동하지 마세요.</p></section>
+    <section class="panel" aria-labelledby="help-title"><h2 id="help-title">사용·권한·설정</h2>
+      <details><summary>Chrome에서 어떤 권한을 요청하나요?</summary><p>설정을 보관하는 storage 권한과 일반 HTTP·HTTPS 사이트의 비밀번호 필드에 적용할 접근 범위를 사용합니다. Chrome 확장 설정의 사이트 접근에서 사용 범위를 줄일 수 있습니다. 비밀번호, 키 입력·삭제 이력은 저장하거나 서버로 전송하지 않습니다.</p></details>
+      <details><summary>어떤 입력은 원래대로 동작하나요?</summary><p>일반 텍스트·이메일·검색 입력창, 선택 영역 삭제, Ctrl·Alt·Meta·Shift 조합키, IME 조합 중인 입력은 기존 동작을 유지합니다. 브라우저 내부 페이지나 닫힌 Shadow DOM 같은 제한된 입력창에서는 적용되지 않을 수 있습니다.</p></details>
+      <details><summary>모든 로그인 화면에서 사용할 수 있나요?</summary><p>일부 사이트가 자체 입력 처리나 합성 이벤트 제한을 사용하면 호환되지 않을 수 있습니다. 입력이 맞지 않으면 확장 아이콘에서 기능을 끄고 다시 입력하세요. 화면을 보는 사람이나 화면 녹화·악성 프로그램으로부터 비밀번호를 보호하는 기능은 아닙니다.</p></details>
+      <details><summary>macOS·Linux 설치 또는 제거는 어떻게 하나요?</summary><p>ZIP을 고정 폴더에 압축 해제하고 Chrome의 개발자 모드에서 해당 폴더를 로드하면 됩니다. 제거는 <code>chrome://extensions/</code>에서 <strong>랜덤 백스페이스</strong>의 삭제 버튼을 사용하세요. 이후 보관 폴더를 지울 수 있습니다.</p></details>
+    </section>
+    <nav class="source-links" aria-label="프로젝트 원본"><a href="https://github.com/habang2222/random-password-backspace">소스 코드·아이디어·상세 설명 ↗</a></nav>
+  </main><footer class="footer"><span>habang222 · Chrome 도구</span><a href="/#links">다른 도구 보기 →</a></footer>
+</div></body></html>

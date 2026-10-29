@@ -1,0 +1,4 @@
+downloads/*.sh text eol=lf
+tests/*.sh text eol=lf
+downloads/*.cmd -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+downloads/*.zip binary
