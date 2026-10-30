@@ -69,6 +69,23 @@ NoNewPrivileges를 강제하지 않습니다. 컨테이너 안에는 no-new-priv
 별도 임시 DB·임시 SSH 키로 컨테이너 생성, 공개키 로그인, cgroup 자원 값, 임시 파일 초기화,
 호스트 키 유지, 종료 후 제거를 검증했습니다. 운영 회원의 대여를 테스트용으로 만들지 않았습니다.
 
+실제 런타임 검증은 셸에서만 실행하지 않고 워커와 동일한 systemd 서비스 조건에서도
+실행합니다. system 서비스에서 rootless 사용자 cgroup으로 `podman exec`를 실행하면
+권한 오류가 날 수 있으므로 SSH 호스트 지문은 워커가 소유한 공개키 파일을 호스트의
+`ssh-keygen`으로 읽습니다. SSH 배너 확인과 실제 공개키 로그인 검증은 유지합니다.
+아래 검증은 임시 DB·임시 SSH 키를 사용하고 생성한 테스트 컨테이너를 종료·제거합니다.
+운영 컨테이너 한도에 여유가 있고 테스트용 SSH 포트가 비어 있을 때 실행합니다.
+
+```sh
+sudo systemd-run --unit=habang-rental-qa --wait --pipe --collect \
+  --property=User=habang-rentals --property=Group=habang-rentals \
+  --property=SupplementaryGroups=habang-data \
+  --property=WorkingDirectory=/srv/files/app \
+  --property=EnvironmentFile=/srv/files/config/rental-worker.env \
+  --property=Delegate=yes --property=NoNewPrivileges=false --property=UMask=0007 \
+  /srv/files/venv/bin/python /srv/files/app/verify_rental_runtime.py
+```
+
 기존 정적 HTML을 Flask 앱에서 함께 제공합니다. SQLite DB는 웹 파일 밖에 저장합니다.
 모든 HTML 페이지에 `community.js`와 `community.css`가 연결되어 있습니다.
 댓글은 페이지 경로별로 분리되며 `/`와 `/index.html`은 같은 댓글을 사용합니다.
