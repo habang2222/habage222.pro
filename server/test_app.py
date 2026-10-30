@@ -19,6 +19,7 @@ class CommunityTests(unittest.TestCase):
                            GOOGLE_CLIENT_ID='', GOOGLE_CLIENT_SECRET='',
                            GITHUB_CLIENT_ID='', GITHUB_CLIENT_SECRET='')
         self.config['TRUST_PROXY'] = False
+        self.config['ALIAS_HOSTS'] = ''
         self.app = create_app(self.config)
         self.client = self.app.test_client()
         self.csrf = self.start(self.client)
@@ -211,6 +212,14 @@ class CommunityTests(unittest.TestCase):
         for i in range(5):
             self.assertEqual(external(f'192.0.2.{i}'), 400)
         self.assertEqual(external('192.0.2.99'), 429)
+
+    def test_aliases_redirect_only_reads_to_the_fixed_canonical_origin(self):
+        client = create_app({**self.config, 'ALIAS_HOSTS': 'www.test.example,old.test.example'}).test_client()
+        response = client.get('/guide.html?next=https://evil.example', base_url='https://www.test.example')
+        self.assertEqual(response.status_code, 308)
+        self.assertEqual(response.location, 'https://test.example/guide.html?next=https://evil.example')
+        self.assertEqual(client.post('/api/auth/register', json={}, base_url='https://old.test.example').status_code, 403)
+        self.assertEqual(client.get('/api/health', base_url='https://unknown.example').status_code, 400)
 
 
 if __name__ == '__main__':

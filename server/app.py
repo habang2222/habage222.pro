@@ -61,6 +61,7 @@ def create_app(config=None):
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=10),
         ADMIN_USER_IDS=os.environ.get('ADMIN_USER_IDS', ''),
         TRUST_PROXY=os.environ.get('TRUST_PROXY', '0') == '1',
+        ALIAS_HOSTS=os.environ.get('ALIAS_HOSTS', ''),
     )
     if config:
         app.config.update(config)
@@ -71,10 +72,13 @@ def create_app(config=None):
         raise RuntimeError('BASE_URL must be an origin without a path')
     secure = base.scheme == 'https'
     cookie_name = '__Host-habang_sid' if secure else 'habang_sid'
+    aliases = {v.strip().lower() for v in app.config['ALIAS_HOSTS'].split(',') if v.strip()} - {base.hostname}
+    if any(not re.fullmatch(r'[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?', host) for host in aliases):
+        raise RuntimeError('ALIAS_HOSTS must contain hostnames without a scheme or path')
     app.config.update(
         SESSION_COOKIE_SECURE=secure,
         SESSION_COOKIE_NAME='__Host-habang_oauth' if secure else 'habang_oauth',
-        TRUSTED_HOSTS=[base.hostname, 'localhost', '127.0.0.1'],
+        TRUSTED_HOSTS=[base.hostname, 'localhost', '127.0.0.1', *aliases],
     )
     if app.config['TRUST_PROXY']:
         original = app.wsgi_app
@@ -129,6 +133,10 @@ def create_app(config=None):
 
     @app.before_request
     def prepare_session():
+        if request.host.partition(':')[0].lower() in aliases:
+            if request.method in ('GET', 'HEAD'):
+                return redirect(app.config['BASE_URL'] + request.full_path.removesuffix('?'), code=308)
+            return fail('기본 사이트 주소에서 다시 시도해 주세요.', 403)
         g.user = None
         g.token = request.cookies.get(cookie_name, '')
         g.cookie_changed = False
