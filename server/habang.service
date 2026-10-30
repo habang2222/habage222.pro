@@ -4,13 +4,13 @@ After=network.target
 
 [Service]
 User=habang222
-Group=habang222
+Group=habang-data
 WorkingDirectory=/srv/files/app
 EnvironmentFile=/srv/files/config/community.env
 ExecStart=/srv/files/venv/bin/gunicorn --workers 2 --threads 2 --bind 127.0.0.1:8080 --timeout 40 --no-control-socket --error-logfile - app:create_app()
 Restart=on-failure
 RestartSec=5
-UMask=0077
+UMask=0007
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

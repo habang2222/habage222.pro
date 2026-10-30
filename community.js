@@ -6,6 +6,20 @@
   let mode = 'login';
   let ready = false;
   let lastFocus = null;
+  function resumeDownload() {
+    if (!state.user) return;
+    const path = sessionStorage.getItem('habang:download');
+    sessionStorage.removeItem('habang:download');
+    if (path && /^\/downloads\/[A-Za-z0-9_.-]+$/.test(path)) location.assign(path);
+  }
+  document.addEventListener('click', event => {
+    const anchor = event.target.closest('a[href]');
+    if (!anchor) return;
+    const url = new URL(anchor.href, location.href);
+    if (url.origin === location.origin && /^\/downloads\/[A-Za-z0-9_.-]+$/.test(url.pathname) && url.pathname !== '/downloads/manifest.json' && !state.user) {
+      event.preventDefault(); sessionStorage.setItem('habang:download', url.pathname); showAuth('login');
+    }
+  });
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -27,6 +41,9 @@
   const toolbar = el('nav', 'hb-toolbar');
   toolbar.setAttribute('aria-label', '회원 메뉴');
   const account = el('span', 'hb-account');
+  const servicesLink = el('a', 'hb-link', 'API · 서버'); servicesLink.href = '/services.html';
+  const adminLink = el('a', 'hb-link', '관리자'); adminLink.href = '/admin.html'; adminLink.hidden = true;
+  toolbar.append(servicesLink, adminLink);
   toolbar.append(account);
   const loginButton = button('로그인 · 회원가입', () => showAuth('login'));
   toolbar.append(loginButton);
@@ -107,6 +124,7 @@
       state = {...state, ...data}; form.reset(); dialog.close(); renderAccount();
       status.textContent = mode === 'register' ? '회원가입이 완료되었습니다.' : '로그인되었습니다.';
       await loadComments();
+      resumeDownload();
     } catch (err) { authStatus.textContent = err.message; }
     finally { submit.disabled = false; }
   });
@@ -135,6 +153,11 @@
   if (footer) footer.before(section); else document.querySelector('main')?.after(section);
 
   function renderAccount() {
+    adminLink.hidden = !state.user?.isAdmin;
+    if (ready) {
+      window.habangSession = {...state};
+      window.dispatchEvent(new CustomEvent('habang:session', {detail: window.habangSession}));
+    }
     toolbar.querySelectorAll('[data-logout]').forEach(n => n.remove());
     account.textContent = state.user ? `${state.user.name}님` : '';
     loginButton.hidden = Boolean(state.user);
@@ -213,6 +236,7 @@
     try {
       state = await api('/api/session'); ready = true; renderAccount(); status.textContent = '';
       await loadComments();
+      resumeDownload();
     } catch (err) { status.textContent = '로그인·댓글 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'; }
     const url = new URL(location.href); const error = url.searchParams.get('auth_error');
     if (error) {
@@ -221,5 +245,6 @@
       url.searchParams.delete('auth_error'); history.replaceState(null, '', url.pathname + url.search + url.hash);
     }
   }
+  window.addEventListener('habang:login', () => showAuth('login'));
   init();
 })();

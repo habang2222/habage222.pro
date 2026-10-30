@@ -7,11 +7,17 @@
     "random-password-backspace": "f64bdb1393717bda9787c3060b78565f1d9f9aa1"
   },
   "sha256": {
-    "LectureAlarm-Setup.cmd": "78fc2f6097710d57f0461035c10f87646887b3bb6fa6117006407ea01fda3a54",
-    "MGlogWH-Setup.cmd": "62d06688beea9adc91d016710d68afb3fbc6d7cb62f9d05c6e708e69a3fcf248",
-    "RandomBackspace-Setup.cmd": "46481303e829a1e8ec2acdd71da8a6588bad96837fa3ded52276e65f34020fb0",
+    "LectureAlarm-Setup.cmd": "19fc2a898c501d345e9b650acf6469e2f3a344cb3de5b6bdc2b2ca321c5cab27",
+    "MGlogWH-Setup.cmd": "b94e4cd0e79a39859aa0efb919a99532f2c8ddd3c13035d4cf1c60f673ab8173",
+    "RandomBackspace-Setup.cmd": "1ec7d094fbbdafc3dc3add6ff02a25f45460ce5a4e2d32d102eb22bd39dae852",
     "cu-lms-lecture-alarm-v2.2.0.zip": "cfe3528280187fdf13a12b699c9152089c24c5bbc508eda3c8f16f8197ec5cf0",
     "install-mglogwh.sh": "45c3f04f1ad23603cf11a370f988c27ecdcfef3e858cc3c848586086c659f88f",
     "random-password-backspace-f64bdb1.zip": "386333398a06e1e302e45a48c7d3360ba95e83365d0e36c262ff7d3d7dad27a2"
+  },
+  "server_artifacts": {
+    "PhotoSorter.apk": {
+      "version": "v1.2.0",
+      "sha256": "a337de9b10257591402aecb7569c983db2442f4d91d219e64ab2bf3545d3e35a"
+    }
   }
 }

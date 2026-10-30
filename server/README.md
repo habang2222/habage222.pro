@@ -1,5 +1,73 @@
 # 로그인 · 회원가입 · 페이지별 댓글
 
+현재 추가 서비스는 `/services.html`, 관리자는 `/admin.html`에서 사용합니다.
+
+## 프로그램별 다운로드 API 키
+
+사이트의 `/downloads/<파일명>`은 로그인 회원의 세션을 확인합니다. 외부 프로그램은
+`Authorization: Bearer ...` 헤더로 프로그램별 API를 호출합니다. 키는 발급 직후 한 번만
+표시하며 DB에는 SHA-256 해시만 저장합니다. 한 키는 한 프로그램의 파일에만 접근하고,
+7·30·90일 만료, 폐기, 마지막 사용·사용 횟수를 지원합니다. 활성 키는 회원당 5개입니다.
+
+```sh
+curl --fail --output package.zip \
+  --header 'Authorization: Bearer YOUR_PROGRAM_KEY' \
+  https://habang222.pro/api/v1/programs/lecture-alarm/download
+```
+
+`GET /api/v1/programs/<program>`은 파일명·크기·SHA-256을 반환하고,
+`GET /api/v1/programs/<program>/files/<filename>`은 특정 파일을 전송합니다.
+프로그램 ID는 `photo-sorter`, `mglogwh`, `lecture-alarm`, `random-backspace`입니다.
+키당 API는 분당 60회, 실제 다운로드는 시간당 60회입니다. URL 쿼리의 키는 받지 않습니다.
+Windows 설치 도우미도 프로그램 키를 안전 입력으로 받아 서버 API에서 후속 파일을 받습니다.
+
+APK는 웹 디렉터리 밖의 `/srv/files/artifacts/PhotoSorter.apk`에서 제공합니다.
+`fetch_artifacts.py`는 고정한 v1.2.0 릴리스와 SHA-256을 검사해 이 파일을 준비합니다.
+다른 배포 파일은 기존 `site/downloads`에 있습니다. `download_catalog.py`의 명시적 허용
+목록 외 파일은 제공하지 않습니다. GitHub의 기존 공개 원본을 비공개로 바꾸는 작업은 하지 않았습니다.
+
+## 승인 후 자동 컨테이너 대여
+
+미승인 회원은 신청 후 관리자의 개별 승인을 기다립니다. 자동 승인 계정은 신청 즉시
+생성 대기열에 들어갑니다. 관리자가 계정을 승인하면 기존 대기 신청도 함께 생성합니다.
+`ADMIN_USER_IDS`로 지정한 운영자만 승인·거절·계정 정책·전체 대여를 관리합니다.
+API 키에는 관리자나 컨테이너 제어 권한이 없습니다.
+
+별도 Linux 계정 `habang-rentals`가 rootless Podman 워커를 실행합니다. 웹 앱에는
+Podman 소켓이나 root 권한을 주지 않습니다. 두 서비스가 DB를 공유하기 위해 `habang-data`
+그룹과 데이터 디렉터리 2770, DB 660, UMask 0007을 사용합니다. OAuth 환경 파일은 계속 600입니다.
+
+컨테이너는 0.5 CPU, 384MB RAM, swap 추가 사용 금지, PID 64개, 임시 홈 128MB,
+임시 /tmp 32MB, 읽기 전용 루트, 축소한 capability, no-new-privileges로 실행합니다.
+기간은 최초 정상 생성부터 24시간이며 회원당 1개, 전체 기본 2개입니다. 홈 파일은
+중지·재시작 때 초기화되므로 지속 저장 VPS로 설명하지 않습니다. Python·Git·curl과 SSH/SFTP가
+있고 접속 사용자는 `tenant`입니다. 개인키는 받지 않고 SSH 공개키만 받습니다.
+SSH 호스트 키는 재시작 때 유지하며, 종료 시 제거합니다.
+
+SSH는 Tailscale IP에만 23000~23019 범위에서 바인딩합니다. 방문자는 Tailscale에 연결되어
+있어야 실제 SSH/SFTP에 접속할 수 있습니다. 웹 신청과 API는 일반 공개 HTTPS에서 동작합니다.
+컨테이너는 호스트 커널을 공유하므로 별도 가상머신과 같은 격리로 설명하지 않습니다.
+
+워커는 DB 작업을 임대 시간과 함께 원자적으로 가져오며, 컨테이너 이름·관리 label을
+대조해 재처리 때 다른 컨테이너를 삭제하지 않습니다. 생성 실패는 `failed`로 표시하고,
+가짜 접속 정보를 보여주지 않습니다. 만료 시 자동 종료하고, 시작·중지·재시작·종료를 지원합니다.
+관리 작업은 `admin_events`, 다운로드는 `download_events`에 기록합니다.
+
+```sh
+sudo systemctl status habang habang-tunnel habang-rentals
+sudo journalctl -u habang-rentals -n 80 --no-pager
+```
+
+rootless 실행 환경의 HOME, XDG_RUNTIME_DIR, DBUS_SESSION_BUS_ADDRESS, DATABASE,
+RENTAL_IMAGE 등을 `rental-worker.env`에 설정합니다. `habang-rentals.service.example`을
+참고하세요. 워커는 uid/gid 매핑을 위한 newuidmap/newgidmap이 필요하므로 워커 서비스에
+NoNewPrivileges를 강제하지 않습니다. 컨테이너 안에는 no-new-privileges를 적용합니다.
+앱 서비스는 기존 NoNewPrivileges 보호를 유지합니다.
+
+검증은 `python -m unittest -q test_app.py test_portal.py`로 실행합니다. 실제 호스트에서는
+별도 임시 DB·임시 SSH 키로 컨테이너 생성, 공개키 로그인, cgroup 자원 값, 임시 파일 초기화,
+호스트 키 유지, 종료 후 제거를 검증했습니다. 운영 회원의 대여를 테스트용으로 만들지 않았습니다.
+
 기존 정적 HTML을 Flask 앱에서 함께 제공합니다. SQLite DB는 웹 파일 밖에 저장합니다.
 모든 HTML 페이지에 `community.js`와 `community.css`가 연결되어 있습니다.
 댓글은 페이지 경로별로 분리되며 `/`와 `/index.html`은 같은 댓글을 사용합니다.

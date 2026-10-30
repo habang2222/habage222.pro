@@ -1,7 +1,7 @@
 .hb-toolbar,.hb-community,.hb-dialog{font:15px/1.6 "Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;box-sizing:border-box;color:#183637}
 .hb-toolbar *,.hb-community *,.hb-dialog *{box-sizing:border-box}
 .hb-toolbar [hidden],.hb-community [hidden],.hb-dialog [hidden]{display:none!important}
-.hb-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:16px;min-height:62px;padding:12px max(20px,calc((100% - 1060px)/2));background:#f3fbfa;border-bottom:1px solid #cee3df}
+.hb-toolbar{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:16px;min-height:62px;padding:12px max(20px,calc((100% - 1060px)/2));background:#f3fbfa;border-bottom:1px solid #cee3df}
 .hb-account{font-weight:700;overflow-wrap:anywhere}
 .hb-button,.hb-link,.hb-provider{font:inherit;cursor:pointer;transition:background .15s;line-height:1.5}
 .hb-button{display:inline-flex;justify-content:center;align-items:center;min-height:42px;padding:9px 18px;border:1px solid #bfd5d1;border-radius:11px;background:#fff;color:#205153;font-weight:700;text-decoration:none}
