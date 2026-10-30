@@ -1,0 +1,20 @@
+[Unit]
+Description=habang approved rootless container rentals
+After=network-online.target habang.service
+Wants=network-online.target
+
+[Service]
+User=habang-rentals
+Group=habang-rentals
+SupplementaryGroups=habang-data
+WorkingDirectory=/srv/files/app
+EnvironmentFile=/srv/files/config/rental-worker.env
+ExecStart=/srv/files/venv/bin/python /srv/files/app/rental_worker.py
+Restart=on-failure
+RestartSec=10
+UMask=0007
+Delegate=yes
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

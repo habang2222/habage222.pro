@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from flask import Flask, abort, g, jsonify, redirect, request, send_from_directory, session
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
+from portal import PORTAL_SCHEMA, register_portal
 
 PASSWORDS = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
 DUMMY_HASH = PASSWORDS.hash(secrets.token_urlsafe(32))
@@ -95,6 +96,7 @@ def create_app(config=None):
     with closing(sqlite3.connect(app.config['DATABASE'])) as conn:
         conn.execute('PRAGMA journal_mode=WAL')
         conn.executescript(SCHEMA)
+        conn.executescript(PORTAL_SCHEMA)
         conn.commit()
 
     def db():
@@ -140,7 +142,7 @@ def create_app(config=None):
         g.user = None
         g.token = request.cookies.get(cookie_name, '')
         g.cookie_changed = False
-        if not (request.path.startswith('/api/') or request.path.startswith('/auth/')):
+        if not request.path.startswith(('/api/', '/auth/', '/downloads/')):
             return
         stored = db().execute('SELECT user_id FROM sessions WHERE token_hash=? AND expires_at>?',
                               (token_hash(g.token), int(time.time()))).fetchone() if g.token else None
@@ -171,7 +173,7 @@ def create_app(config=None):
         )
         if secure:
             response.headers['Strict-Transport-Security'] = 'max-age=31536000'
-        if request.path.startswith(('/api/', '/auth/')):
+        if request.path.startswith(('/api/', '/auth/', '/downloads/')):
             response.headers['Cache-Control'] = 'no-store'
             response.headers['Vary'] = 'Cookie'
         if getattr(g, 'cookie_changed', False):
@@ -204,7 +206,7 @@ def create_app(config=None):
         return row['count'] <= maximum
 
     def public_user():
-        return {'id': g.user['id'], 'name': g.user['display_name']} if g.user else None
+        return {'id': g.user['id'], 'name': g.user['display_name'], 'isAdmin': g.user['id'] in admins} if g.user else None
 
     def require_user():
         if not g.user:
@@ -339,6 +341,8 @@ def create_app(config=None):
             db().execute('DELETE FROM comments WHERE id=?', (comment_id,))
         return jsonify(ok=True)
 
+    register_portal(app, db, fail, payload, text, require_user, rate_limit, admins)
+
     oauth = OAuth(app)
     google_id = app.config.get('GOOGLE_CLIENT_ID', os.getenv('GOOGLE_CLIENT_ID'))
     google_secret = app.config.get('GOOGLE_CLIENT_SECRET', os.getenv('GOOGLE_CLIENT_SECRET'))
@@ -426,8 +430,8 @@ def create_app(config=None):
         if any(p.startswith('.') for p in parts) or '\\' in path:
             abort(404)
         allowed = ('/' + path in pages or (len(parts) == 1 and Path(path).suffix in ('.js', '.css'))
-                   or (parts[0] in ('images', 'downloads') and Path(path).suffix.lower() in
-                       ('.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico', '.cmd', '.zip', '.sh', '.json', '.apk')))
+                   or (parts[0] == 'images' and Path(path).suffix.lower() in
+                       ('.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico')))
         if not allowed:
             abort(404)
         return send_from_directory(root, path)

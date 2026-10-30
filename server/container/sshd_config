@@ -1,0 +1,18 @@
+Port 2222
+ListenAddress 0.0.0.0
+HostKey /run/workspace-host-key
+PidFile /run/sshd/sshd.pid
+AuthorizedKeysFile /run/tenant-key
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin no
+UsePAM no
+AllowUsers tenant
+DisableForwarding yes
+PermitTunnel no
+PermitUserEnvironment no
+X11Forwarding no
+PrintMotd no
+Subsystem sftp internal-sftp
