@@ -103,7 +103,14 @@ class Runtime:
                 with socket.create_connection((self.bind, row['ssh_port']), timeout=1) as channel:
                     channel.settimeout(2)
                     if channel.recv(120).startswith(b'SSH-2.0-'):
-                        fingerprint = self.command('exec', '--user', '0', self.name(row), 'ssh-keygen', '-lf', '/run/workspace-host-key').split()[1]
+                        # The worker owns this public key. Read its fingerprint on
+                        # the host; podman exec can cross a rootless cgroup boundary
+                        # when the worker runs as a system service.
+                        self.name(row)
+                        public_key = self.state / (row['id'] + '.hostkey.pub')
+                        result = subprocess.run(['/usr/bin/ssh-keygen', '-E', 'sha256', '-lf', str(public_key)],
+                                                capture_output=True, text=True, check=True, timeout=10)
+                        fingerprint = result.stdout.split()[1]
                         if not fingerprint.startswith('SHA256:'):
                             raise RuntimeError('Invalid host fingerprint')
                         return fingerprint
