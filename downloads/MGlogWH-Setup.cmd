@@ -19,7 +19,10 @@ try {
   New-Item -ItemType Directory -Path $stage | Out-Null
   $script = Join-Path $stage 'install-mglogwh.sh'
   Write-Host 'Downloading the Ubuntu installer...'
-  Invoke-WebRequest -UseBasicParsing -Uri 'https://habang222.pro/downloads/install-mglogwh.sh' -OutFile $script
+  Write-Host 'Create an API key for mglogwh at https://habang222.pro/api.html'
+  $downloadSecret = Read-Host 'Program download API key' -AsSecureString
+  $downloadHeaders = @{ Authorization = 'Bearer ' + ([Net.NetworkCredential]::new('', $downloadSecret).Password) }
+  Invoke-WebRequest -UseBasicParsing -Headers $downloadHeaders -Uri 'https://habang222.pro/api/v1/programs/mglogwh/files/install-mglogwh.sh' -OutFile $script
   if ((Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash -ne '45c3f04f1ad23603cf11a370f988c27ecdcfef3e858cc3c848586086c659f88f') { throw 'The download checksum did not match. Download a fresh installer from the website.' }
   $linuxPath = & wsl.exe -d Ubuntu-24.04 -- wslpath -a -u $script
   if ($LASTEXITCODE -ne 0 -or -not $linuxPath) { throw 'Could not access the downloaded installer from Ubuntu.' }

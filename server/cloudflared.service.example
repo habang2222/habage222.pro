@@ -1,0 +1,20 @@
+[Unit]
+Description=habang Cloudflare Tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=habang222
+Group=habang222
+WorkingDirectory=/srv/files
+ExecStart=/srv/files/bin/cloudflared --no-autoupdate tunnel run --token-file /srv/files/config/cloudflared.token
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

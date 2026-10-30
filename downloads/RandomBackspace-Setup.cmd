@@ -25,7 +25,10 @@ try {
   New-Item -ItemType Directory -Path $stage -Force | Out-Null
   $archive = Join-Path $stage 'package.zip'
   Write-Host 'Downloading the extension package...'
-  Invoke-WebRequest -UseBasicParsing -Uri 'https://habang222.pro/downloads/random-password-backspace-f64bdb1.zip' -OutFile $archive
+  Write-Host 'Create an API key for random-backspace at https://habang222.pro/api.html'
+  $downloadSecret = Read-Host 'Program download API key' -AsSecureString
+  $downloadHeaders = @{ Authorization = 'Bearer ' + ([Net.NetworkCredential]::new('', $downloadSecret).Password) }
+  Invoke-WebRequest -UseBasicParsing -Headers $downloadHeaders -Uri 'https://habang222.pro/api/v1/programs/random-backspace/files/random-password-backspace-f64bdb1.zip' -OutFile $archive
   if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '386333398a06e1e302e45a48c7d3360ba95e83365d0e36c262ff7d3d7dad27a2') {
     throw 'The download checksum did not match. The package was not installed.'
   }

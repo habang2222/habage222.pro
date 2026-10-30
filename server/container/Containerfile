@@ -1,0 +1,9 @@
+FROM docker.io/library/debian:trixie-slim
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-server bash python3 curl git ca-certificates procps \
+    && rm -rf /var/lib/apt/lists/* /etc/ssh/ssh_host_* \
+    && useradd --uid 1000 --create-home --shell /bin/bash tenant && passwd -d tenant
+COPY sshd_config /etc/ssh/sshd_config
+COPY entrypoint.sh /usr/local/bin/workspace-start
+RUN chmod 755 /usr/local/bin/workspace-start
+EXPOSE 2222
+ENTRYPOINT ["/usr/local/bin/workspace-start"]

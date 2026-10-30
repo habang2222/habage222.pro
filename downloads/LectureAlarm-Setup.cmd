@@ -25,7 +25,10 @@ try {
   New-Item -ItemType Directory -Path $stage -Force | Out-Null
   $archive = Join-Path $stage 'package.zip'
   Write-Host 'Downloading the extension package...'
-  Invoke-WebRequest -UseBasicParsing -Uri 'https://habang222.pro/downloads/cu-lms-lecture-alarm-v2.2.0.zip' -OutFile $archive
+  Write-Host 'Create an API key for lecture-alarm at https://habang222.pro/api.html'
+  $downloadSecret = Read-Host 'Program download API key' -AsSecureString
+  $downloadHeaders = @{ Authorization = 'Bearer ' + ([Net.NetworkCredential]::new('', $downloadSecret).Password) }
+  Invoke-WebRequest -UseBasicParsing -Headers $downloadHeaders -Uri 'https://habang222.pro/api/v1/programs/lecture-alarm/files/cu-lms-lecture-alarm-v2.2.0.zip' -OutFile $archive
   if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne 'cfe3528280187fdf13a12b699c9152089c24c5bbc508eda3c8f16f8197ec5cf0') {
     throw 'The download checksum did not match. The package was not installed.'
   }
