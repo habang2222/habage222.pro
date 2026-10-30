@@ -108,3 +108,6 @@ Cloudflare에 기존 도메인을 추가하고 DNS 레코드를 가져온 뒤, �
 토큰을 Git에 올리거나 실행 명령어 인자에 직접 넣지 않습니다.
 공개 경로를 적용하기 전에 `BASE_URL`과 Google/GitHub의 콜백 주소를 공개 도메인으로
 함께 변경해야 합니다. 현재 운영 주소의 DNS 레코드를 먼저 확인하고 전환하세요.
+`ALIAS_HOSTS=www.habang222.pro,habang.taila77bea.ts.net`처럼 이전 주소와 www 주소를
+등록하면 GET/HEAD 요청은 BASE_URL의 같은 경로로 이동합니다. 별칭 주소에서는
+쓰기 요청을 허용하지 않으므로 로그인·댓글은 기본 주소에서 진행합니다.
