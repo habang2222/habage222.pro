@@ -36,7 +36,10 @@ sudo systemctl enable --now habang
 
 로컬 시험은 `SECRET_KEY`와 `BASE_URL=http://127.0.0.1:8080`을 설정한 뒤
 `python app.py`로 실행합니다. 프록시 뒤에서도 요청 Origin은 BASE_URL과 같아야 합니다.
-프록시가 원본 클라이언트 IP를 검증하지 않으면 속도 제한은 프록시 IP를 기준으로 적용됩니다.
+`TRUST_PROXY=1`이면 loopback에서 접속하는 프록시의 X-Forwarded-For 마지막 주소를
+방문자 IP로 사용합니다. Nginx/Tailscale Serve/Cloudflare Tunnel처럼 실제 방문자 IP를
+기록하는 로컬 프록시에서만 사용하고, 앱은 계속 localhost에 바인딩합니다.
+다른 주소에서 직접 연결한 요청의 전달 헤더는 신뢰하지 않습니다.
 
 ## Google / GitHub OAuth 앱 등록
 
@@ -93,3 +96,15 @@ sudo journalctl -u habang -n 50 --no-pager
 SQLite 실행 중 DB 파일만 복사하면 WAL의 최신 기록을 놓칠 수 있습니다.
 Python `sqlite3.Connection.backup()`으로 백업하고 복구한 DB로 확인하세요.
 백업은 서버 밖에도 보관합니다.
+
+## 공개 도메인과 Cloudflare Tunnel
+
+Cloudflare에 기존 도메인을 추가하고 DNS 레코드를 가져온 뒤, 등록기관에서 지정된
+네임서버로 전환합니다. Tunnel의 공개 애플리케이션 경로는 서비스
+`http://127.0.0.1:8080`으로 연결합니다. 도메인 등록기관 이전은 필요하지 않습니다.
+
+서버의 `/srv/files/bin/cloudflared`와 `cloudflared.service.example`을 사용할 수 있습니다.
+터널 토큰은 `/srv/files/config/cloudflared.token`에 저장하고 권한을 600으로 지정합니다.
+토큰을 Git에 올리거나 실행 명령어 인자에 직접 넣지 않습니다.
+공개 경로를 적용하기 전에 `BASE_URL`과 Google/GitHub의 콜백 주소를 공개 도메인으로
+함께 변경해야 합니다. 현재 운영 주소의 DNS 레코드를 먼저 확인하고 전환하세요.
