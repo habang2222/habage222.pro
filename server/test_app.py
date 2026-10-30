@@ -18,6 +18,7 @@ class CommunityTests(unittest.TestCase):
                            SITE_ROOT=os.getenv('SITE_ROOT', str(Path(__file__).resolve().parents[1])),
                            GOOGLE_CLIENT_ID='', GOOGLE_CLIENT_SECRET='',
                            GITHUB_CLIENT_ID='', GITHUB_CLIENT_SECRET='')
+        self.config['TRUST_PROXY'] = False
         self.app = create_app(self.config)
         self.client = self.app.test_client()
         self.csrf = self.start(self.client)
@@ -190,6 +191,26 @@ class CommunityTests(unittest.TestCase):
         self.assertEqual(failed.location, '/?auth_error=failed')
         with closing(sqlite3.connect(self.config['DATABASE'])) as db:
             self.assertEqual(db.execute('SELECT count(*) FROM users').fetchone()[0], 3)
+
+    def test_rate_limit_uses_only_trusted_local_proxy_addresses(self):
+        def attempts(trust_proxy, remote_addr):
+            app = create_app({**self.config, 'TRUST_PROXY': trust_proxy})
+            client = app.test_client()
+            csrf = self.start(client)
+            def attempt(forwarded):
+                return client.post('/api/auth/register', base_url='https://test.example', json={},
+                    environ_overrides={'REMOTE_ADDR': remote_addr}, headers={
+                    'Origin': 'https://test.example', 'X-CSRF-Token': csrf, 'X-Forwarded-For': forwarded}).status_code
+            return attempt
+        local = attempts(True, '127.0.0.1')
+        for _ in range(5):
+            self.assertEqual(local('198.51.100.1'), 400)
+        self.assertEqual(local('198.51.100.1'), 429)
+        self.assertEqual(local('198.51.100.2'), 400)
+        external = attempts(True, '203.0.113.1')
+        for i in range(5):
+            self.assertEqual(external(f'192.0.2.{i}'), 400)
+        self.assertEqual(external('192.0.2.99'), 429)
 
 
 if __name__ == '__main__':

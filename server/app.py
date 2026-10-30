@@ -17,6 +17,7 @@ from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 from flask import Flask, abort, g, jsonify, redirect, request, send_from_directory, session
 from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 PASSWORDS = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
 DUMMY_HASH = PASSWORDS.hash(secrets.token_urlsafe(32))
@@ -59,6 +60,7 @@ def create_app(config=None):
         SESSION_COOKIE_SAMESITE='Lax',
         PERMANENT_SESSION_LIFETIME=timedelta(minutes=10),
         ADMIN_USER_IDS=os.environ.get('ADMIN_USER_IDS', ''),
+        TRUST_PROXY=os.environ.get('TRUST_PROXY', '0') == '1',
     )
     if config:
         app.config.update(config)
@@ -74,6 +76,14 @@ def create_app(config=None):
         SESSION_COOKIE_NAME='__Host-habang_oauth' if secure else 'habang_oauth',
         TRUSTED_HOSTS=[base.hostname, 'localhost', '127.0.0.1'],
     )
+    if app.config['TRUST_PROXY']:
+        original = app.wsgi_app
+        forwarded = ProxyFix(original, x_for=1)
+        def local_proxy(environ, start_response):
+            # Only the loopback reverse proxy can supply the visitor address.
+            handler = forwarded if environ.get('REMOTE_ADDR') in ('127.0.0.1', '::1') else original
+            return handler(environ, start_response)
+        app.wsgi_app = local_proxy
     root = Path(app.config['SITE_ROOT']).resolve()
     pages = {'/' + p.name for p in root.glob('*.html')}
     admins = set(app.config['ADMIN_USER_IDS'].split(',')) - {''}
