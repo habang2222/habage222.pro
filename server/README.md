@@ -1,6 +1,7 @@
 # 로그인 · 회원가입 · 페이지별 댓글
 
-현재 추가 서비스는 `/services.html`, 관리자는 `/admin.html`에서 사용합니다.
+헤더의 API 키는 `/api.html`, 서버 대여는 `/servers.html`, 관리자는 `/admin.html`에서 사용합니다.
+기존 `/services.html`은 두 전용 페이지로 안내합니다. 메인 링크 목록에는 서비스 카드를 넣지 않습니다.
 
 ## 프로그램별 다운로드 API 키
 

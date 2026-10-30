@@ -122,8 +122,8 @@ class CommunityTests(unittest.TestCase):
         for page in pages:
             res = self.client.get('/' + page.name, base_url='https://test.example')
             self.assertEqual(res.status_code, 200)
-            self.assertIn(b'/community.js?v=2', res.data)
-            self.assertIn(b'/community.css?v=2', res.data)
+            self.assertIn(b'/community.js?v=3', res.data)
+            self.assertIn(b'/community.css?v=3', res.data)
             res.close()
         res = self.client.get('/community.js', base_url='https://test.example')
         self.assertNotIn(b'innerHTML', res.data)

@@ -3,6 +3,8 @@
   const root = document.querySelector('[data-portal]');
   if (!root) return;
   const adminPage = root.dataset.portal === 'admin';
+  const keysPage = root.dataset.portal === 'keys';
+  const rentalsPage = root.dataset.portal === 'rentals';
   const byId = id => document.getElementById(id);
   const status = byId('portal-status');
   let session = {user: null, csrfToken: ''};
@@ -86,9 +88,9 @@
   async function loadMember() {
     const owner = session.user?.id;
     if (!owner) return;
-    const [services, keys, rentals] = await Promise.all([api('/api/services'), api('/api/keys'), api('/api/rentals')]);
+    const [services, keys, rentals] = await Promise.all([api('/api/services'), keysPage ? api('/api/keys') : null, rentalsPage ? api('/api/rentals') : null]);
     if (session.user?.id !== owner) return;
-    if (!programCatalog.length) {
+    if (keysPage && !programCatalog.length) {
       programCatalog = services.programs;
       const chosen = new URL(location.href).searchParams.get('download');
       for (const id of ['key-program', 'guide-program']) {
@@ -108,14 +110,16 @@
         record.append(buttons); programs.append(record);
       }
     }
-    renderKeys(keys.keys);
-    byId('approval-badge').textContent = services.autoApproved ? '자동 승인 계정' : '관리자 승인 필요';
-    byId('rental-policy').textContent = (services.autoApproved ? '승인된 계정입니다. 신청하면 서버가 자동 생성됩니다.' : '신청 후 관리자가 승인하면 서버가 자동 생성됩니다.') + ` 계정당 1개, 전체 최대 ${services.capacity}개입니다. ${services.runtime.message}`;
-    const list = byId('rental-list'); list.replaceChildren();
-    if (!rentals.rentals.length) list.append(node('p', 'empty', '아직 신청한 워크스페이스가 없습니다.'));
-    rentals.rentals.forEach(row => list.append(rentalRecord(row)));
-    const busy = rentals.rentals.some(row => !terminal.has(row.status));
-    byId('rental-form').querySelectorAll('input,textarea,button').forEach(n => n.disabled = busy);
+    if (keysPage) renderKeys(keys.keys);
+    if (rentalsPage) {
+      byId('approval-badge').textContent = services.autoApproved ? '자동 승인 계정' : '관리자 승인 필요';
+      byId('rental-policy').textContent = (services.autoApproved ? '승인된 계정입니다. 신청하면 서버가 자동 생성됩니다.' : '신청 후 관리자가 승인하면 서버가 자동 생성됩니다.') + ` 계정당 1개, 전체 최대 ${services.capacity}개입니다. ${services.runtime.message}`;
+      const list = byId('rental-list'); list.replaceChildren();
+      if (!rentals.rentals.length) list.append(node('p', 'empty', '아직 신청한 워크스페이스가 없습니다.'));
+      rentals.rentals.forEach(row => list.append(rentalRecord(row)));
+      const busy = rentals.rentals.some(row => !terminal.has(row.status));
+      byId('rental-form').querySelectorAll('input,textarea,button').forEach(n => n.disabled = busy);
+    }
   }
   async function loadAdmin() {
     const owner = session.user?.id;
@@ -158,7 +162,7 @@
     } catch (error) { if (current === epoch) message(error.message, true); }
   }
   byId('portal-login').addEventListener('click', () => window.dispatchEvent(new Event('habang:login')));
-  if (!adminPage) {
+  if (keysPage) {
     byId('key-form').addEventListener('submit', async event => {
       event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('button'); button.disabled = true;
       try {
@@ -173,6 +177,8 @@
       catch { message('자동 복사가 지원되지 않습니다. 표시된 키를 직접 선택해 복사해 주세요.', true); }
     });
     byId('dismiss-key').addEventListener('click', clearSecret);
+  }
+  if (rentalsPage) {
     byId('rental-form').addEventListener('submit', async event => {
       event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('button'); button.disabled = true;
       try {
@@ -182,7 +188,8 @@
       } catch (error) { message(error.message, true); button.disabled = false; }
     });
     byId('refresh-rentals').addEventListener('click', () => loadMember().catch(error => message(error.message, true)));
-  } else {
+  }
+  if (adminPage) {
     byId('refresh-admin').addEventListener('click', () => loadAdmin().catch(error => message(error.message, true)));
     byId('user-search').addEventListener('submit', event => { event.preventDefault(); search = new FormData(event.currentTarget).get('q'); loadAdmin().catch(error => message(error.message, true)); });
   }

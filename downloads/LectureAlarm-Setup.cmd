@@ -25,7 +25,7 @@ try {
   New-Item -ItemType Directory -Path $stage -Force | Out-Null
   $archive = Join-Path $stage 'package.zip'
   Write-Host 'Downloading the extension package...'
-  Write-Host 'Create an API key for lecture-alarm at https://habang222.pro/services.html'
+  Write-Host 'Create an API key for lecture-alarm at https://habang222.pro/api.html'
   $downloadSecret = Read-Host 'Program download API key' -AsSecureString
   $downloadHeaders = @{ Authorization = 'Bearer ' + ([Net.NetworkCredential]::new('', $downloadSecret).Password) }
   Invoke-WebRequest -UseBasicParsing -Headers $downloadHeaders -Uri 'https://habang222.pro/api/v1/programs/lecture-alarm/files/cu-lms-lecture-alarm-v2.2.0.zip' -OutFile $archive

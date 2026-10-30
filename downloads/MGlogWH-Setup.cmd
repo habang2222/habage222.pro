@@ -19,7 +19,7 @@ try {
   New-Item -ItemType Directory -Path $stage | Out-Null
   $script = Join-Path $stage 'install-mglogwh.sh'
   Write-Host 'Downloading the Ubuntu installer...'
-  Write-Host 'Create an API key for mglogwh at https://habang222.pro/services.html'
+  Write-Host 'Create an API key for mglogwh at https://habang222.pro/api.html'
   $downloadSecret = Read-Host 'Program download API key' -AsSecureString
   $downloadHeaders = @{ Authorization = 'Bearer ' + ([Net.NetworkCredential]::new('', $downloadSecret).Password) }
   Invoke-WebRequest -UseBasicParsing -Headers $downloadHeaders -Uri 'https://habang222.pro/api/v1/programs/mglogwh/files/install-mglogwh.sh' -OutFile $script

@@ -2,12 +2,6 @@
 // description과 download를 지정하면 설명과 설치 파일 받기 버튼도 표시합니다.
 window.HABANG_LINKS = [
   {
-    title: "API · 서버 워크스페이스",
-    url: "services.html",
-    description: "내 API 키를 관리하고, 승인된 Linux 개발용 컨테이너를 신청하세요.",
-    tags: ["api", "server", "code"]
-  },
-  {
     title: "사진 빠른 분류",
     url: "photo-sorter.html",
     description: "사진마다 앨범을 골라 복사하는 Android 사진 정리 앱입니다.",

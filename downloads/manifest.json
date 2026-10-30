@@ -7,9 +7,9 @@
     "random-password-backspace": "f64bdb1393717bda9787c3060b78565f1d9f9aa1"
   },
   "sha256": {
-    "LectureAlarm-Setup.cmd": "19fc2a898c501d345e9b650acf6469e2f3a344cb3de5b6bdc2b2ca321c5cab27",
-    "MGlogWH-Setup.cmd": "b94e4cd0e79a39859aa0efb919a99532f2c8ddd3c13035d4cf1c60f673ab8173",
-    "RandomBackspace-Setup.cmd": "1ec7d094fbbdafc3dc3add6ff02a25f45460ce5a4e2d32d102eb22bd39dae852",
+    "LectureAlarm-Setup.cmd": "b0d6b227f2aed638592740c8d48f09d8a03b4f05d519a571ebe4728af9794856",
+    "MGlogWH-Setup.cmd": "f8066bddf932a425fa8824617fd1cb3be811f2df71c74b5e86fbb8458d23c19a",
+    "RandomBackspace-Setup.cmd": "db9f9a3017c1f786594a30d51a2d96af80ad36797b9ae808251a97c26943286e",
     "cu-lms-lecture-alarm-v2.2.0.zip": "cfe3528280187fdf13a12b699c9152089c24c5bbc508eda3c8f16f8197ec5cf0",
     "install-mglogwh.sh": "45c3f04f1ad23603cf11a370f988c27ecdcfef3e858cc3c848586086c659f88f",
     "random-password-backspace-f64bdb1.zip": "386333398a06e1e302e45a48c7d3360ba95e83365d0e36c262ff7d3d7dad27a2"
