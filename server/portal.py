@@ -226,7 +226,7 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
         if program is None:
             abort(404)
         if not g.user:
-            return redirect('/services.html?download=' + program)
+            return redirect('/api.html?download=' + program)
         return download(program, filename)
 
     @app.get('/api/rentals')

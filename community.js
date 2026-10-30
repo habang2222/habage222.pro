@@ -41,13 +41,20 @@
   const toolbar = el('nav', 'hb-toolbar');
   toolbar.setAttribute('aria-label', '회원 메뉴');
   const account = el('span', 'hb-account');
-  const servicesLink = el('a', 'hb-link', 'API · 서버'); servicesLink.href = '/services.html';
+  const homeLink = el('a', 'hb-header-brand', 'habang222'); homeLink.href = '/';
+  const apiLink = el('a', 'hb-link', 'API 키'); apiLink.href = '/api.html';
+  const rentalsLink = el('a', 'hb-link', '서버 대여'); rentalsLink.href = '/servers.html';
   const adminLink = el('a', 'hb-link', '관리자'); adminLink.href = '/admin.html'; adminLink.hidden = true;
-  toolbar.append(servicesLink, adminLink);
+  for (const link of [apiLink, rentalsLink, adminLink]) {
+    if (link.getAttribute('href') === page) link.setAttribute('aria-current', 'page');
+  }
+  toolbar.append(homeLink, apiLink, rentalsLink, adminLink);
   toolbar.append(account);
   const loginButton = button('로그인 · 회원가입', () => showAuth('login'));
   toolbar.append(loginButton);
-  document.body.prepend(toolbar);
+  const siteHeader = el('header', 'hb-site-header');
+  siteHeader.append(toolbar);
+  document.body.prepend(siteHeader);
 
   const dialog = el('dialog', 'hb-dialog');
   dialog.setAttribute('aria-labelledby', 'hb-auth-title');

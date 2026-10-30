@@ -3,6 +3,7 @@
 .hb-toolbar [hidden],.hb-community [hidden],.hb-dialog [hidden]{display:none!important}
 .hb-toolbar{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:16px;min-height:62px;padding:12px max(20px,calc((100% - 1060px)/2));background:#f3fbfa;border-bottom:1px solid #cee3df}
 .hb-account{font-weight:700;overflow-wrap:anywhere}
+.hb-header-brand{margin-right:auto;color:#183637;font-size:20px;font-weight:900;letter-spacing:-.04em;text-decoration:none}.hb-toolbar [aria-current=page]{font-weight:800;color:#104b51;text-decoration-thickness:2px}
 .hb-button,.hb-link,.hb-provider{font:inherit;cursor:pointer;transition:background .15s;line-height:1.5}
 .hb-button{display:inline-flex;justify-content:center;align-items:center;min-height:42px;padding:9px 18px;border:1px solid #bfd5d1;border-radius:11px;background:#fff;color:#205153;font-weight:700;text-decoration:none}
 .hb-button:hover{background:#ecf5f2}.hb-primary{background:#165e65;border-color:#165e65;color:#fff}.hb-primary:hover{background:#104b51}
@@ -31,3 +32,4 @@
 .hb-form{display:grid;gap:14px}.hb-field{display:grid;gap:6px;font-size:13px;font-weight:700}.hb-form .hb-muted{margin:0;font-weight:400}.hb-form .hb-status{margin:0}.hb-form>.hb-primary{width:100%}
 .hb-toolbar :is(a,button):focus-visible,.hb-community :is(button,textarea):focus-visible,.hb-dialog :is(a,button,input):focus-visible{outline:3px solid #247e78;outline-offset:3px}
 @media(max-width:650px){.hb-toolbar{padding:12px 20px}.hb-toolbar .hb-button{font-size:13px}.hb-community{margin:24px 16px 40px;padding:22px 18px}.hb-guest{padding:18px}.hb-dialog{padding:26px 22px}.hb-dialog h2{font-size:22px}}
+@media(max-width:650px){.hb-toolbar{gap:8px 12px;font-size:13px}.hb-header-brand{flex-basis:100%;font-size:19px}.hb-toolbar .hb-link{padding:5px 0}}
