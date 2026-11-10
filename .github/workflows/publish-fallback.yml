@@ -1,0 +1,49 @@
+name: Publish static fallback
+
+on:
+  push:
+    branches:
+      - main
+      - feature/membership-page-comments
+    paths:
+      - '*.html'
+      - '*.css'
+      - '*.js'
+      - 'images/**'
+      - '.github/workflows/publish-fallback.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Stage presentation files only
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$RUNNER_TEMP/habang-static"
+          node edge/build-fallback.mjs "$target"
+          test -f "$target/index.html"
+          test ! -e "$target/downloads"
+          test ! -e "$target/server"
+      - name: Update fallback-pages branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin fallback-pages
+          target="$RUNNER_TEMP/habang-pages"
+          git worktree add -B fallback-pages "$target" origin/fallback-pages
+          rsync -a --delete --exclude='.git' "$RUNNER_TEMP/habang-static/" "$target/"
+          git -C "$target" add -A
+          if git -C "$target" diff --cached --quiet; then
+            echo 'Static backup is current.'
+            exit 0
+          fi
+          git -C "$target" -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Refresh static fallback from ${GITHUB_SHA:0:12}"
+          git -C "$target" push origin HEAD:fallback-pages
