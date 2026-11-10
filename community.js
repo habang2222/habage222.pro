@@ -150,7 +150,7 @@
       verificationEmail.value = state.user?.email || verificationEmail.value;
     }
     title.textContent = signingUp ? 'habang 회원이 되어보세요' : '다시 만나서 반가워요';
-    intro.textContent = signingUp ? (proof ? '인증된 이메일을 아이디로 사용합니다. 비밀번호, 닉네임, 이름을 등록해 주세요.' : 'Google 또는 GitHub로 이메일을 먼저 확인해 주세요.') : '로그인하고 이야기를 나눠보세요.';
+    intro.textContent = signingUp ? (proof ? '인증된 이메일을 아이디로 사용합니다. 비밀번호, 닉네임, 이름을 등록해 주세요.' : state.user?.registrationComplete ? '현재 계정에 Google 또는 GitHub를 연결하세요. 연결 전에는 최근 10분 이내 비밀번호 로그인이 필요합니다.' : 'Google 또는 GitHub로 이메일을 먼저 확인해 주세요.') : '로그인하고 이야기를 나눠보세요.';
     divider.textContent = signingUp ? (proof ? '회원 정보 등록' : '이메일 인증') : '또는 이메일로 로그인';
     divider.hidden = signingUp && !proof && !state.emailVerificationAvailable;
     submit.textContent = signingUp ? '회원가입' : '로그인';
@@ -223,6 +223,9 @@
       if (!complete) {
         const finish = button('인증·가입 완료', () => showAuth('register'), 'hb-link');
         finish.dataset.onboarding = ''; toolbar.append(finish);
+      } else {
+        const connect = button('소셜 계정 연결', () => showAuth('register'), 'hb-link');
+        connect.dataset.onboarding = ''; toolbar.append(connect);
       }
       const logout = button('로그아웃', async () => {
         logout.disabled = true;
