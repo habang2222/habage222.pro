@@ -70,6 +70,15 @@
       record.append(node('pre', '', `ssh -p ${row.sshPort} ${row.sshUser}@${row.sshHost}`));
       record.append(node('p', 'meta', `Tailscale 연결 필요 · SFTP도 같은 주소·포트·계정과 SSH 개인키로 접속`));
       if (row.sshFingerprint) record.append(node('p', 'meta', `서버 호스트 키 지문: ${row.sshFingerprint}`));
+      if (!forAdmin && row.status === 'running') {
+        record.append(node('strong', '', '원격 데스크톱'));
+        record.append(node('p', 'muted', 'PC에서 아래 SSH 터널 명령을 실행한 채 유지하세요. 기본 키가 아닌 경우 -i "개인키_경로"를 추가합니다.'));
+        record.append(node('pre', '', `ssh -o ExitOnForwardFailure=yes -L 127.0.0.1:6080:127.0.0.1:6080 -N -p ${row.sshPort} ${row.sshUser}@${row.sshHost}`));
+        const desktop = node('a', 'action', '내 PC에서 데스크톱 열기 ↗');
+        desktop.href = 'http://127.0.0.1:6080/vnc.html?autoconnect=1';
+        desktop.target = '_blank'; desktop.rel = 'noopener noreferrer';
+        record.append(desktop);
+      }
     }
     const buttons = node('div', 'button-row');
     if (forAdmin && row.status === 'pending') {

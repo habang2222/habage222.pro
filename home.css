@@ -20,7 +20,7 @@ a { color: inherit; }
   display: flex;
   justify-content: center;
   min-height: clamp(500px, 61vw, 730px);
-  padding: 42px 24px 0;
+  padding: 68px 24px 0;
   overflow: hidden;
   background-color: #8bdedc;
   background-image: url("images/home/hero.png");
@@ -32,6 +32,10 @@ a { color: inherit; }
 
 .hero-content { position: relative; z-index: 1; width: 100%; }
 .home-hero h1 { margin: 0; font-size: clamp(64px, 11vw, 150px); font-weight: 900; letter-spacing: -.085em; line-height: 1; }
+
+/* Keep the menu over the mint hero so it does not push the artwork down. */
+body .hb-site-header { position: absolute; inset: 0 0 auto; z-index: 20; }
+body .hb-site-header .hb-toolbar { background: transparent; border-bottom: 0; }
 
 .home-main {
   position: relative;
@@ -84,7 +88,7 @@ a { color: inherit; }
 :is(a, button, input):focus-visible { outline: 3px solid #00696d; outline-offset: 4px; }
 
 @media (max-width: 650px) {
-  .home-hero { min-height: 500px; padding-top: 55px; background-size: 100% auto; }
+  .home-hero { min-height: 500px; padding-top: 132px; background-size: 100% auto; }
   .home-hero h1 { font-size: clamp(55px, 14vw, 90px); }
   .home-main { padding: 54px 20px 76px; }
   .filter-row { display: block; }
