@@ -4,7 +4,6 @@ import logging
 import os
 from pathlib import Path
 import secrets
-import socket
 import sqlite3
 import subprocess
 import time
@@ -19,7 +18,7 @@ class Runtime:
         self.state = Path(os.environ.get('RENTAL_STATE', '/var/lib/habang-rentals/instances'))
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.bind = os.environ.get('RENTAL_BIND_ADDRESS', '100.110.205.65')
-        self.image = os.environ.get('RENTAL_IMAGE', 'localhost/habang-workspace:1')
+        self.image = os.environ.get('RENTAL_IMAGE', 'localhost/habang-workspace:2')
 
     def command(self, *args, timeout=45):
         result = subprocess.run(['/usr/bin/podman', *args], capture_output=True, text=True, timeout=timeout, check=False)
@@ -94,28 +93,27 @@ class Runtime:
         config = details.get('HostConfig', {})
         if config.get('Memory') != PLAN['memoryMb'] * 1024 * 1024 or config.get('PidsLimit') != PLAN['pids'] or not config.get('ReadonlyRootfs'):
             raise RuntimeError('Resource isolation is not active')
-        self.command('start', name)
+        if not details.get('State', {}).get('Running'):
+            self.command('start', name)
         return self.wait_for_ssh(row)
 
     def wait_for_ssh(self, row):
+        name = self.name(row)
         for _ in range(20):
-            try:
-                with socket.create_connection((self.bind, row['ssh_port']), timeout=1) as channel:
-                    channel.settimeout(2)
-                    if channel.recv(120).startswith(b'SSH-2.0-'):
-                        # The worker owns this public key. Read its fingerprint on
-                        # the host; podman exec can cross a rootless cgroup boundary
-                        # when the worker runs as a system service.
-                        self.name(row)
-                        public_key = self.state / (row['id'] + '.hostkey.pub')
-                        result = subprocess.run(['/usr/bin/ssh-keygen', '-E', 'sha256', '-lf', str(public_key)],
-                                                capture_output=True, text=True, check=True, timeout=10)
-                        fingerprint = result.stdout.split()[1]
-                        if not fingerprint.startswith('SHA256:'):
-                            raise RuntimeError('Invalid host fingerprint')
-                        return fingerprint
-            except OSError:
-                pass
+            details = self.inspect(row)
+            state = details.get('State', {}) if details else {}
+            if state.get('Running') and state.get('StartedAt'):
+                # Avoid an outbound exception to the host SSH port. The container
+                # process must announce its fresh sshd listener after StartedAt.
+                logs = self.command('logs', '--since', state['StartedAt'], name, timeout=8)
+                if 'Server listening on 0.0.0.0 port 2222.' in logs:
+                    public_key = self.state / (row['id'] + '.hostkey.pub')
+                    result = subprocess.run(['/usr/bin/ssh-keygen', '-E', 'sha256', '-lf', str(public_key)],
+                                            capture_output=True, text=True, check=True, timeout=10)
+                    fingerprint = result.stdout.split()[1]
+                    if not fingerprint.startswith('SHA256:'):
+                        raise RuntimeError('Invalid host fingerprint')
+                    return fingerprint
             time.sleep(1)
         raise RuntimeError('SSH 서버가 시작되지 않았습니다. 관리자에게 문의해 주세요.')
 
@@ -135,7 +133,9 @@ class Runtime:
             raise RuntimeError('대여 컨테이너를 찾을 수 없습니다.')
         if action not in ('start', 'stop', 'restart'):
             raise RuntimeError('Unsupported action')
-        self.command(action, self.name(row))
+        if action != 'start' or not details.get('State', {}).get('Running'):
+            if action != 'stop' or details.get('State', {}).get('Running'):
+                self.command(action, self.name(row))
         return self.wait_for_ssh(row) if action != 'stop' else None
 
 
@@ -150,6 +150,77 @@ class Worker:
         with self.db:
             self.db.execute("INSERT INTO rental_runtime VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET heartbeat=excluded.heartbeat,ready=excluded.ready,message=excluded.message",
                             (int(time.time()), int(ready), 'ready' if ready else 'unavailable'))
+
+    def owner_complete(self, user_id):
+        owner = self.db.execute(
+            'SELECT email_verified_at,registration_completed_at FROM users WHERE id=?',
+            (user_id,)).fetchone()
+        return bool(owner and owner['email_verified_at'] and owner['registration_completed_at'])
+
+    def recover_startup(self):
+        # A dead worker cannot still own a lease after systemd has restarted it.
+        with self.db:
+            self.db.execute("UPDATE rental_jobs SET status='queued',lease_until=NULL WHERE status='running'")
+        self.reconcile()
+
+    def reconcile(self):
+        """Make the displayed rental state match Podman after reboot or a crash."""
+        stamp = int(time.time())
+        rows = self.db.execute(
+            "SELECT * FROM rentals WHERE status IN ('running','stopped')").fetchall()
+        for original in rows:
+            row = dict(original)
+            if row['expires_at'] is not None and row['expires_at'] <= stamp:
+                continue
+            active = self.db.execute(
+                "SELECT 1 FROM rental_jobs WHERE rental_id=? AND status IN ('queued','running')",
+                (row['id'],)).fetchone()
+            if active:
+                continue
+            try:
+                details = self.runtime.inspect(row)
+            except Exception:
+                LOG.exception('Rental %s could not be reconciled', row['id'])
+                continue
+            running = bool(details and details.get('State', {}).get('Running'))
+            complete = self.owner_complete(row['user_id'])
+            action = None
+            target = None
+            error = None
+            if not details:
+                target = 'failed'
+                error = '대여 컨테이너를 찾을 수 없습니다. 관리자에게 문의해 주세요.'
+            elif running and not complete:
+                action, target = 'stop', 'stopping'
+                error = '계정 확인이 완료되지 않아 대여가 중지됩니다.'
+            elif row['status'] == 'running' and not running:
+                if complete:
+                    action, target = 'start', 'starting'
+                    error = '서버가 재시작되어 대여를 다시 시작합니다.'
+                else:
+                    target = 'stopped'
+                    error = '계정 확인이 완료되지 않아 대여가 중지되었습니다.'
+            elif row['status'] == 'stopped' and running:
+                action, target = 'stop', 'stopping'
+                error = '중지 상태를 복구하고 있습니다.'
+            if target is None:
+                continue
+            with self.db:
+                current = self.db.execute(
+                    'SELECT status FROM rentals WHERE id=?', (row['id'],)).fetchone()
+                active = self.db.execute(
+                    "SELECT 1 FROM rental_jobs WHERE rental_id=? AND status IN ('queued','running')",
+                    (row['id'],)).fetchone()
+                if not current or current['status'] != row['status'] or active:
+                    continue
+                self.db.execute(
+                    'UPDATE rentals SET status=?,updated_at=?,last_error=? WHERE id=?',
+                    (target, stamp, error, row['id']))
+                if action:
+                    self.db.execute(
+                        "INSERT INTO rental_jobs(id,rental_id,action,status,created_at) VALUES(?,?,?,'queued',?)",
+                        (secrets.token_hex(16), row['id'], action, stamp))
+            LOG.warning('Rental %s reconciled from %s to %s', row['id'], row['status'], target)
 
     def expire(self):
         stamp = int(time.time())
@@ -196,6 +267,8 @@ class Worker:
             return False
         job, row = item
         try:
+            if job['action'] in ('create', 'start', 'restart') and not self.owner_complete(row['user_id']):
+                raise PermissionError('Rental owner has not completed account verification')
             fingerprint = self.runtime.operate(job['action'], row)
             target = {'create': 'running', 'start': 'running', 'stop': 'stopped', 'restart': 'running', 'terminate': 'terminated', 'expire': 'expired'}[job['action']]
             stamp = int(time.time())
@@ -220,8 +293,13 @@ if __name__ == '__main__':
     worker = Worker(os.environ['DATABASE'], Runtime())
     try:
         worker.runtime.ready()
+        worker.recover_startup()
+        next_reconcile = time.monotonic() + 30
         while True:
             worker.run_once()
+            if time.monotonic() >= next_reconcile:
+                worker.reconcile()
+                next_reconcile = time.monotonic() + 30
             time.sleep(3)
     except Exception:
         worker.heartbeat(False)

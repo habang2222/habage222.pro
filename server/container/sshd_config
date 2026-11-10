@@ -10,7 +10,10 @@ PermitEmptyPasswords no
 PermitRootLogin no
 UsePAM no
 AllowUsers tenant
-DisableForwarding yes
+AllowTcpForwarding local
+PermitOpen 127.0.0.1:6080
+GatewayPorts no
+AllowStreamLocalForwarding no
 PermitTunnel no
 PermitUserEnvironment no
 X11Forwarding no

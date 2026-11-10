@@ -47,6 +47,14 @@ SSH 호스트 키는 재시작 때 유지하며, 종료 시 제거합니다.
 
 SSH는 Tailscale IP에만 23000~23019 범위에서 바인딩합니다. 방문자는 Tailscale에 연결되어
 있어야 실제 SSH/SFTP에 접속할 수 있습니다. 웹 신청과 API는 일반 공개 HTTPS에서 동작합니다.
+대여 컨테이너의 원격 데스크톱은 Openbox/noVNC를 컨테이너 내부
+`127.0.0.1:6080`에만 띄웁니다. 해당 대여의 SSH 개인키로
+`ssh -L 127.0.0.1:6080:127.0.0.1:6080 -N -p <대여포트> tenant@100.110.205.65`
+터널을 열고 브라우저에서
+`http://127.0.0.1:6080/vnc.html?autoconnect=1`에 접속합니다.
+호스트의 데스크톱과 VNC 포트는 공개하지 않습니다.
+호스트의 `habang-rental-egress.service`는 대여 UID의 사설망·Tailnet 신규
+outbound 연결을 막습니다. 워커 서비스는 이 방화벽 서비스에 의존해야 합니다.
 컨테이너는 호스트 커널을 공유하므로 별도 가상머신과 같은 격리로 설명하지 않습니다.
 
 워커는 DB 작업을 임대 시간과 함께 원자적으로 가져오며, 컨테이너 이름·관리 label을
@@ -91,6 +99,14 @@ sudo systemd-run --unit=habang-rental-qa --wait --pipe --collect \
 댓글은 페이지 경로별로 분리되며 `/`와 `/index.html`은 같은 댓글을 사용합니다.
 
 ## 실행
+
+운영 DB는 영구 ext4 디스크의 `/srv/files/data/community.sqlite3`에 둡니다.
+`backup_database.py`는 SQLite online backup API로 WAL을 포함한 일관된
+스냅샷을 `/srv/files/backups/scheduled`에 만들고 임시 복구 파일의 무결성을
+검증합니다. `habang-db-backup.timer`는 6시간 간격으로 실행하며 30일 보관하되
+최근 7개는 유지합니다. `habang.service.d/db-integrity.conf`는 DB가 없거나
+손상됐을 때 웹 서비스를 시작하지 않도록 합니다. 스냅샷도 같은 디스크에 있으므로
+디스크 고장 대비에는 별도 저장소의 암호화된 복사본이 필요합니다.
 
 Python 3.11 이상이 필요합니다. 서버에서 다음 구조로 배치합니다.
 

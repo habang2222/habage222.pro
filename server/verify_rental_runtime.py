@@ -50,6 +50,19 @@ with tempfile.TemporaryDirectory(prefix='habang-rental-qa-') as scratch:
         assert checks['memory'] == str(384 * 1024 * 1024) and checks['pids'] == '64'
         quota, period = checks['cpu'].split()
         assert int(quota) / int(period) == 0.5
+        desktop_probe = ("import socket,urllib.request,json,pathlib;"
+                         "r=urllib.request.urlopen('http://127.0.0.1:6080/vnc.html',timeout=5);"
+                         "v=socket.create_connection(('127.0.0.1',5900),timeout=5);"
+                         "print(json.dumps({'web':r.status,'vnc':v.recv(12).decode(),"
+                         "'memory_used':int(pathlib.Path('/sys/fs/cgroup/memory.current').read_text())}))")
+        desktop_result = subprocess.run(
+            ssh + ['python3 -c ' + shlex.quote(desktop_probe)],
+            capture_output=True, text=True, timeout=20)
+        if desktop_result.returncode:
+            raise RuntimeError('Desktop probe failed: ' + desktop_result.stderr[-700:])
+        desktop = json.loads(desktop_result.stdout)
+        assert desktop['web'] == 200 and desktop['vnc'].startswith('RFB ')
+        assert desktop['memory_used'] < 384 * 1024 * 1024
         fingerprint = row['ssh_fingerprint']
         runtime.operate('stop', row)
         new_fingerprint = runtime.operate('start', row)
@@ -58,7 +71,9 @@ with tempfile.TemporaryDirectory(prefix='habang-rental-qa-') as scratch:
         assert result.returncode == 0
         runtime.operate('terminate', row)
         assert runtime.inspect(row) is None
-        print(json.dumps({'rootless': True, 'ssh_login': True, 'checks': checks, 'restart_keeps_host_key': True, 'temporary_files_reset': True, 'termination_verified': True}))
+        print(json.dumps({'rootless': True, 'ssh_login': True, 'checks': checks, 'desktop': desktop,
+                          'restart_keeps_host_key': True, 'temporary_files_reset': True,
+                          'termination_verified': True}))
     finally:
         if row:
             runtime.operate('terminate', row)

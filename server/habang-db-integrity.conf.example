@@ -1,0 +1,2 @@
+[Service]
+ExecStartPre=/srv/files/venv/bin/python /srv/files/app/backup_database.py --check-only

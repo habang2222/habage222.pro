@@ -1,7 +1,8 @@
 [Unit]
 Description=habang approved rootless container rentals
-After=network-online.target habang.service
+After=network-online.target habang.service habang-rental-egress.service
 Wants=network-online.target
+Requires=habang-rental-egress.service
 
 [Service]
 User=habang-rentals
