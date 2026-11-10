@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8bdedc">
+  <meta name="description" content="habang222의 앱과 도구. MGlogWH 관제, 싸강 완료 알림, 랜덤 백스페이스의 설명과 설치 파일을 한곳에서 찾아보세요.">
+  <title>habang222 | 링크 모음</title>
+  <link rel="stylesheet" href="home.css?v=6">
+  <script src="links.js?v=7" defer></script>
+  <script src="home.js?v=5" defer></script>
+  <link rel="stylesheet" href="community.css?v=4">
+  <script src="community.js?v=3" defer></script>
+<link rel="stylesheet" href="offline.css"></head>
+<body>
+  <a class="skip-link" href="#link-list">링크 목록으로 건너뛰기</a>
+
+  <header class="home-hero">
+    <div class="hero-content">
+      <h1>habang222</h1>
+    </div>
+  </header><div class="hb-fallback-notice" role="status" aria-live="polite">서버가 일시적으로 연결되지 않아 정적 화면을 보여 드립니다. 로그인, 댓글, 다운로드, API 키, 서버 대여 및 원격 접속은 복구 후 이용할 수 있습니다.</div>
+
+  <main class="home-main" id="links">
+    <div class="search-area" role="search">
+      <label for="link-search">검색</label>
+      <div class="search-field">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="2"/><path d="m16 16 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="link-search" type="search" placeholder="검색" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <span class="filter-label">태그</span>
+      <div class="tag-filters" id="tag-filters" aria-label="태그로 링크 필터링"></div>
+    </div>
+
+    <p class="sr-only" id="result-count" role="status" aria-live="polite"></p>
+    <div class="link-grid" id="link-list"></div>
+    <p class="empty-state" id="empty-state" hidden>검색 결과 없음</p>
+
+    <noscript>
+      <p class="noscript-note">검색과 태그를 사용하려면 JavaScript를 켜 주세요. <a href="photo-sorter.html">사진 빠른 분류</a> · <a href="mglogwh.html">MGlogWH + Control Room</a> · <a href="lecture-alarm.html">싸강 완료 알림</a> · <a href="random-backspace.html">랜덤 백스페이스</a></p>
+    </noscript>
+  </main>
+
+  <footer class="home-footer">
+    <span>habang222</span>
+    <a href="https://github.com/habang2222/habage222.pro">GitHub</a>
+  </footer>
+</body>
+</html>
