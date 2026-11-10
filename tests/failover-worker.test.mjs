@@ -65,7 +65,7 @@ test('offline HTML comes from GitHub Pages without visitor credentials', async (
     assert.match(html, /서버가 일시적으로 연결되지/);
     assert.match(html, /Portfolio/);
     assert.equal(result.headers.get('x-habang-fallback'), 'github-pages');
-    assert.equal(calls[1].url, 'https://habang2222.github.io/habage222.pro/guide.html');
+    assert.equal(calls[1].url, 'https://habang2222.github.io/habang222-pages/guide.html');
     assert.equal(calls[1].headers.get('cookie'), null);
     assert.equal(calls[1].headers.get('authorization'), null);
   } finally { globalThis.fetch = prior; }

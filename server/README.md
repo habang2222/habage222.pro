@@ -23,9 +23,11 @@ curl --fail --output package.zip \
 Windows 설치 도우미도 프로그램 키를 안전 입력으로 받아 서버 API에서 후속 파일을 받습니다.
 
 APK는 웹 디렉터리 밖의 `/srv/files/artifacts/PhotoSorter.apk`에서 제공합니다.
-`fetch_artifacts.py`는 고정한 v1.2.0 릴리스와 SHA-256을 검사해 이 파일을 준비합니다.
+`fetch_artifacts.py`는 기존 서버의 파일을 SHA-256으로 확인합니다. 새 서버에서는
+APK를 비공개 경로로 직접 전송한 뒤 `python3 fetch_artifacts.py --source /안전한/원본/PhotoSorter.apk`
+로 같은 고정 SHA-256을 확인해 준비합니다. 공개 GitHub Release에서 가져오지 않습니다.
 다른 배포 파일은 기존 `site/downloads`에 있습니다. `download_catalog.py`의 명시적 허용
-목록 외 파일은 제공하지 않습니다. GitHub의 기존 공개 원본을 비공개로 바꾸는 작업은 하지 않았습니다.
+목록 외 파일은 제공하지 않습니다. 과거 GitHub 기록과 Release 공개 파일은 별도 정리가 필요합니다.
 
 ## 승인 후 자동 컨테이너 대여
 

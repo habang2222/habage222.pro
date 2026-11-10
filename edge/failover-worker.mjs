@@ -1,7 +1,7 @@
 // Route this Worker over habang222.pro/* while the Cloudflare Tunnel remains
 // the DNS origin. A same-route fetch(request) goes to that origin, not back to
 // this Worker: https://developers.cloudflare.com/workers/configuration/routing/routes/
-const PAGES_ORIGIN = 'https://habang2222.github.io/habage222.pro';
+const PAGES_ORIGIN = 'https://habang2222.github.io/habang222-pages';
 const STATIC_FILE = /^\/(?:[a-z0-9-]+\.html|[a-z0-9-]+\.(?:css|js)|favicon\.ico)$/;
 const STATIC_IMAGE = /^\/images\/(?:[a-z0-9-]+\/)*[a-z0-9-]+\.(?:png|jpe?g|webp|svg)$/;
 const OFFLINE_BANNER = '<div role="status" aria-live="polite" class="hb-fallback-notice">서버가 일시적으로 연결되지 않아 정적 화면을 보여 드립니다. 로그인, 댓글, 다운로드, API 키, 서버 대여 및 원격 접속은 복구 후 이용할 수 있습니다.</div>';
