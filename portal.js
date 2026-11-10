@@ -135,9 +135,10 @@
     for (const row of data.users) {
       const record = node('article', 'record');
       record.append(node('strong', '', row.display_name), node('span', 'pill', row.isAdmin ? '관리자' : row.auto_approved ? '자동 승인' : '신청별 승인'));
-      record.append(node('p', 'meta', `회원 ID ${row.id} · ${row.providers || '이메일 가입'} · 가입 ${date(row.created_at)}`));
-      if (row.email) record.append(node('p', 'meta', row.email));
-      if (!row.isAdmin) record.append(action(row.auto_approved ? '자동 승인 해제' : '계정 자동 승인', async () => {
+      const verified = Boolean(row.email_verified_at && row.registration_completed_at);
+      record.append(node('p', 'meta', `회원 ID ${row.id} · ${row.providers || '이메일 가입'} · 가입 ${date(row.created_at)} · ${verified ? '이메일 인증·가입 완료' : '인증·가입 미완료'}`));
+      if (row.email) record.append(node('p', 'meta', `${row.email}${row.full_name ? ` · 이름 ${row.full_name}` : ''}`));
+      if (!row.isAdmin && (verified || row.auto_approved)) record.append(action(row.auto_approved ? '자동 승인 해제' : '계정 자동 승인', async () => {
         if (!row.auto_approved && !window.confirm(`“${row.display_name}” 계정을 자동 승인할까요? 현재 대기 중인 신청과 앞으로의 신청이 자원 한도 안에서 자동 생성됩니다.`)) return;
         await api(`/api/admin/users/${row.id}/rental-access`, {method: 'POST', body: JSON.stringify({approved: !row.auto_approved})});
         await loadAdmin(); message('계정의 자동 승인 설정을 변경했습니다.');
@@ -152,16 +153,20 @@
       if (current !== epoch) return;
       if (next.user?.id !== session.user?.id) clearSecret();
       session = next;
-      byId('portal-guest').hidden = Boolean(session.user);
+      const complete = Boolean(session.user?.verified && session.user?.registrationComplete);
+      if (!complete) clearSecret();
+      byId('portal-guest').hidden = complete;
+      byId('portal-login').textContent = session.user ? '인증·가입 완료하기' : '로그인 · 회원가입';
       const content = byId(adminPage ? 'admin-content' : 'member-content');
-      content.hidden = !session.user || (adminPage && !session.user.isAdmin);
+      content.hidden = !complete || (adminPage && !session.user.isAdmin);
       if (!session.user) { message('로그인 후 서비스를 이용할 수 있습니다.'); return; }
+      if (!complete) { message('Google·GitHub로 이메일을 확인하고 회원가입을 완료한 뒤 이용해 주세요.', true); return; }
       if (adminPage && !session.user.isAdmin) { message('이 계정에는 관리자 권한이 없습니다.', true); return; }
       await (adminPage ? loadAdmin() : loadMember());
       if (current === epoch) message(adminPage ? '승인과 서버 상태를 관리할 수 있습니다.' : `${session.user.name}님의 서비스입니다.`);
     } catch (error) { if (current === epoch) message(error.message, true); }
   }
-  byId('portal-login').addEventListener('click', () => window.dispatchEvent(new Event('habang:login')));
+  byId('portal-login').addEventListener('click', () => window.dispatchEvent(new Event(session.user ? 'habang:register' : 'habang:login')));
   if (keysPage) {
     byId('key-form').addEventListener('submit', async event => {
       event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('button'); button.disabled = true;

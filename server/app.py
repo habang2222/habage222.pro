@@ -4,12 +4,15 @@ import hmac
 import os
 import re
 import secrets
+import smtplib
 import sqlite3
+import ssl
 import time
 from contextlib import closing
 from datetime import timedelta
+from email.message import EmailMessage
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
@@ -23,6 +26,8 @@ from portal import PORTAL_SCHEMA, register_portal
 PASSWORDS = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
 DUMMY_HASH = PASSWORDS.hash(secrets.token_urlsafe(32))
 SESSION_TTL = 60 * 60 * 24 * 7
+ANON_SESSION_TTL = 30 * 60
+PROOF_TTL = 10 * 60
 EMAIL = re.compile(r"^[^\s@]{1,64}@[^\s@.]+(?:\.[^\s@.]+)+$")
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -34,7 +39,8 @@ CREATE TABLE IF NOT EXISTS identities (
  provider_email TEXT, PRIMARY KEY(provider, subject)
 );
 CREATE TABLE IF NOT EXISTS sessions (
- token_hash TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), expires_at INTEGER NOT NULL
+ token_hash TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), expires_at INTEGER NOT NULL,
+ created_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at);
 CREATE TABLE IF NOT EXISTS comments (
@@ -45,7 +51,32 @@ CREATE INDEX IF NOT EXISTS comments_page ON comments(page, id DESC);
 CREATE TABLE IF NOT EXISTS rate_limits (
  bucket TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS email_challenges (
+ email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires_at INTEGER NOT NULL,
+ attempts INTEGER NOT NULL DEFAULT 0
+);
 """
+
+
+def send_verification_email(config, recipient, code):
+    """Send a short lived code; the code must never be logged or returned by the API."""
+    message = EmailMessage()
+    message['From'] = config['SMTP_FROM']
+    message['To'] = recipient
+    message['Subject'] = 'habang222 이메일 확인 코드'
+    message.set_content(f'이메일 확인 코드는 {code}입니다. 10분 안에 입력해 주세요.\n요청하지 않았다면 무시하세요.')
+    context = ssl.create_default_context()
+    port = int(config['SMTP_PORT'])
+    if config['SMTP_SECURITY'] == 'ssl':
+        client = smtplib.SMTP_SSL(config['SMTP_HOST'], port, timeout=10, context=context)
+    else:
+        client = smtplib.SMTP(config['SMTP_HOST'], port, timeout=10)
+    with client:
+        if config['SMTP_SECURITY'] == 'starttls':
+            client.starttls(context=context)
+        if config['SMTP_USER']:
+            client.login(config['SMTP_USER'], config['SMTP_PASSWORD'])
+        client.send_message(message)
 
 
 def create_app(config=None):
@@ -63,11 +94,25 @@ def create_app(config=None):
         ADMIN_USER_IDS=os.environ.get('ADMIN_USER_IDS', ''),
         TRUST_PROXY=os.environ.get('TRUST_PROXY', '0') == '1',
         ALIAS_HOSTS=os.environ.get('ALIAS_HOSTS', ''),
+        SMTP_HOST=os.environ.get('SMTP_HOST', ''),
+        SMTP_PORT=os.environ.get('SMTP_PORT', '587'),
+        SMTP_SECURITY=os.environ.get('SMTP_SECURITY', 'starttls'),
+        SMTP_USER=os.environ.get('SMTP_USER', ''),
+        SMTP_PASSWORD=os.environ.get('SMTP_PASSWORD', ''),
+        SMTP_FROM=os.environ.get('SMTP_FROM', ''),
     )
     if config:
         app.config.update(config)
     if not app.config['SECRET_KEY'] or len(app.config['SECRET_KEY']) < 32:
         raise RuntimeError('SECRET_KEY must be at least 32 characters')
+    if app.config['SMTP_SECURITY'] not in ('starttls', 'ssl'):
+        raise RuntimeError('SMTP_SECURITY must be starttls or ssl')
+    try:
+        smtp_port = int(app.config['SMTP_PORT'])
+    except (TypeError, ValueError) as error:
+        raise RuntimeError('SMTP_PORT must be a valid port') from error
+    if not 1 <= smtp_port <= 65535:
+        raise RuntimeError('SMTP_PORT must be a valid port')
     base = urlsplit(app.config['BASE_URL'])
     if base.scheme not in ('http', 'https') or not base.hostname or base.path or base.query or base.fragment:
         raise RuntimeError('BASE_URL must be an origin without a path')
@@ -97,6 +142,19 @@ def create_app(config=None):
         conn.execute('PRAGMA journal_mode=WAL')
         conn.executescript(SCHEMA)
         conn.executescript(PORTAL_SCHEMA)
+        # Existing accounts retain their IDs and data, but must prove email
+        # ownership and complete the new profile before privileged services.
+        columns = {row[1] for row in conn.execute('PRAGMA table_info(users)')}
+        for column, definition in (
+            ('full_name', 'TEXT'),
+            ('email_verified_at', 'INTEGER'),
+            ('registration_completed_at', 'INTEGER'),
+        ):
+            if column not in columns:
+                conn.execute(f'ALTER TABLE users ADD COLUMN {column} {definition}')
+        if 'created_at' not in {row[1] for row in conn.execute('PRAGMA table_info(sessions)')}:
+            conn.execute('ALTER TABLE sessions ADD COLUMN created_at INTEGER')
+        conn.execute('DELETE FROM sessions WHERE user_id IS NULL')
         conn.commit()
 
     def db():
@@ -122,16 +180,40 @@ def create_app(config=None):
     def csrf_token():
         return hmac.new(app.config['SECRET_KEY'].encode(), g.token.encode(), hashlib.sha256).hexdigest()
 
+    def anonymous_token():
+        raw = f'a.{int(time.time())}.{secrets.token_urlsafe(18)}'
+        signature = hmac.new(app.config['SECRET_KEY'].encode(), raw.encode(), hashlib.sha256).hexdigest()
+        return f'{raw}.{signature}'
+
+    def valid_anonymous_token(token):
+        parts = token.split('.')
+        if len(parts) != 4 or parts[0] != 'a':
+            return False
+        try:
+            issued_at = int(parts[1])
+        except ValueError:
+            return False
+        age = int(time.time()) - issued_at
+        if age < -60 or age > ANON_SESSION_TTL:
+            return False
+        expected = hmac.new(app.config['SECRET_KEY'].encode(), '.'.join(parts[:3]).encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(parts[3], expected)
+
     def new_session(user_id=None):
-        if getattr(g, 'token', None):
+        if getattr(g, 'token', None) and not valid_anonymous_token(g.token):
             db().execute('DELETE FROM sessions WHERE token_hash=?', (token_hash(g.token),))
-        g.token = secrets.token_urlsafe(32)
-        db().execute('INSERT INTO sessions VALUES(?,?,?)', (token_hash(g.token), user_id, int(time.time()) + SESSION_TTL))
-        db().execute('DELETE FROM sessions WHERE expires_at < ?', (int(time.time()),))
-        db().execute('DELETE FROM rate_limits WHERE expires_at < ?', (int(time.time()),))
+        g.token = secrets.token_urlsafe(32) if user_id else anonymous_token()
+        if user_id:
+            db().execute('INSERT INTO sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)',
+                         (token_hash(g.token), user_id, int(time.time()) + SESSION_TTL, int(time.time())))
+        if user_id or secrets.randbelow(100) == 0:
+            db().execute('DELETE FROM sessions WHERE expires_at < ?', (int(time.time()),))
+            db().execute('DELETE FROM rate_limits WHERE expires_at < ?', (int(time.time()),))
+            db().execute('DELETE FROM email_challenges WHERE expires_at < ?', (int(time.time()),))
         db().commit()
         g.cookie_changed = True
-        g.user = db().execute('SELECT id, display_name FROM users WHERE id=?', (user_id,)).fetchone() if user_id else None
+        g.authenticated_at = int(time.time()) if user_id else None
+        g.user = db().execute('SELECT id, email, display_name, full_name, email_verified_at, registration_completed_at FROM users WHERE id=?', (user_id,)).fetchone() if user_id else None
 
     @app.before_request
     def prepare_session():
@@ -140,15 +222,22 @@ def create_app(config=None):
                 return redirect(app.config['BASE_URL'] + request.full_path.removesuffix('?'), code=308)
             return fail('기본 사이트 주소에서 다시 시도해 주세요.', 403)
         g.user = None
+        g.authenticated_at = None
         g.token = request.cookies.get(cookie_name, '')
         g.cookie_changed = False
         if not request.path.startswith(('/api/', '/auth/', '/downloads/')):
             return
-        stored = db().execute('SELECT user_id FROM sessions WHERE token_hash=? AND expires_at>?',
-                              (token_hash(g.token), int(time.time()))).fetchone() if g.token else None
+        is_anonymous = valid_anonymous_token(g.token) if g.token else False
+        stored = db().execute('SELECT user_id,created_at FROM sessions WHERE token_hash=? AND expires_at>? AND user_id IS NOT NULL',
+                              (token_hash(g.token), int(time.time()))).fetchone() if g.token and not is_anonymous else None
         if stored:
-            g.user = db().execute('SELECT id, display_name FROM users WHERE id=?', (stored['user_id'],)).fetchone()
+            g.user = db().execute('SELECT id, email, display_name, full_name, email_verified_at, registration_completed_at FROM users WHERE id=?', (stored['user_id'],)).fetchone()
+            g.authenticated_at = stored['created_at']
+        elif is_anonymous:
+            pass
         elif request.path == '/api/session' or request.path.startswith('/auth/'):
+            if not rate_limit('anonymous-session', 300, 3600):
+                return fail('요청이 많습니다. 잠시 후 다시 시도해 주세요.', 429)
             new_session()
         else:
             g.token = ''
@@ -177,7 +266,7 @@ def create_app(config=None):
             response.headers['Cache-Control'] = 'no-store'
             response.headers['Vary'] = 'Cookie'
         if getattr(g, 'cookie_changed', False):
-            response.set_cookie(cookie_name, g.token, max_age=SESSION_TTL, secure=secure,
+            response.set_cookie(cookie_name, g.token, max_age=SESSION_TTL if g.user else ANON_SESSION_TTL, secure=secure,
                                 httponly=True, samesite='Lax', path='/')
         return response
 
@@ -206,39 +295,169 @@ def create_app(config=None):
         return row['count'] <= maximum
 
     def public_user():
-        return {'id': g.user['id'], 'name': g.user['display_name'], 'isAdmin': g.user['id'] in admins} if g.user else None
+        return ({'id': g.user['id'], 'name': g.user['display_name'], 'email': g.user['email'],
+                 'verified': bool(g.user['email_verified_at']),
+                 'registrationComplete': bool(g.user['registration_completed_at']),
+                 'isAdmin': g.user['id'] in admins} if g.user else None)
 
     def require_user():
         if not g.user:
             abort(401, description='로그인 후 이용해 주세요.')
 
+    def require_verified_user():
+        require_user()
+        if not g.user['email_verified_at'] or not g.user['registration_completed_at']:
+            abort(403, description='이메일 인증과 회원가입을 완료해 주세요.')
+
+    def pending_registration():
+        proof = session.get('pending_registration')
+        if not isinstance(proof, dict) or int(time.time()) - proof.get('issued_at', 0) > PROOF_TTL:
+            session.pop('pending_registration', None)
+            return None
+        if proof.get('provider') not in ('google', 'github', 'email') or not EMAIL.fullmatch(proof.get('email', '')):
+            session.pop('pending_registration', None)
+            return None
+        return proof
+
+    def pending_public():
+        proof = pending_registration()
+        return ({'email': proof['email'], 'provider': proof['provider'],
+                 'suggestedName': proof.get('suggested_name', '')} if proof else None)
+
+    def smtp_ready():
+        return bool(app.config['SMTP_HOST'] and app.config['SMTP_FROM'] and
+                    (not app.config['SMTP_USER'] or app.config['SMTP_PASSWORD']))
+
+    def email_code_hash(email, code):
+        return hmac.new(app.config['SECRET_KEY'].encode(), f'email:{email}:{code}'.encode(), hashlib.sha256).hexdigest()
+
     @app.get('/api/session')
     def current_session():
-        return jsonify(user=public_user(), csrfToken=csrf_token(), providers={
+        return jsonify(user=public_user(), csrfToken=csrf_token(), pendingRegistration=pending_public(),
+                       emailVerificationAvailable=smtp_ready(), providers={
             name: bool(oauth.create_client(name)) for name in ('google', 'github')
         })
 
+    @app.post('/api/auth/link/<provider>')
+    def begin_explicit_link(provider):
+        require_user()
+        if provider not in ('google', 'github'):
+            abort(404)
+        if not oauth.create_client(provider):
+            return fail('이 인증 방식은 현재 준비 중입니다.', 503)
+        if not g.user['email'] or not g.authenticated_at or int(time.time()) - g.authenticated_at > PROOF_TTL:
+            return fail('계정 연결 전 비밀번호로 다시 로그인해 주세요.', 403)
+        if not rate_limit('identity-link', 10, 3600, g.user['id']):
+            return fail('계정 연결 요청이 많습니다. 잠시 후 다시 시도해 주세요.', 429)
+        next_page = text(payload().get('next'))
+        next_page = next_page if next_page in pages or next_page == '/' else '/'
+        session['link_user_id'] = g.user['id']
+        session['link_issued_at'] = int(time.time())
+        return jsonify(url=f'/auth/{provider}?' + urlencode({'next': next_page, 'link': '1'}))
+
+    @app.post('/api/auth/email/start')
+    def start_email_verification():
+        if not smtp_ready():
+            return fail('이메일 확인 메일 설정이 준비되지 않았습니다. Google 또는 GitHub로 인증해 주세요.', 503)
+        email = text(payload().get('email')).strip().lower()
+        if len(email) > 254 or not EMAIL.fullmatch(email):
+            return fail('올바른 이메일 주소를 입력해 주세요.')
+        if not rate_limit('email-start-ip', 5, 3600) or not rate_limit('email-start-address', 5, 3600, email):
+            return fail('인증 메일 요청이 많습니다. 잠시 후 다시 시도해 주세요.', 429)
+        existing = db().execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
+        # Do not disclose whether another account already owns this address.
+        if existing and (not g.user or existing['id'] != g.user['id']):
+            return jsonify(sent=True), 202
+        code = f'{secrets.randbelow(100_000_000):08d}'
+        with db():
+            db().execute('INSERT INTO email_challenges(email,code_hash,expires_at,attempts) VALUES(?,?,?,0) '
+                         'ON CONFLICT(email) DO UPDATE SET code_hash=excluded.code_hash,expires_at=excluded.expires_at,attempts=0',
+                         (email, email_code_hash(email, code), int(time.time()) + PROOF_TTL))
+        try:
+            send_verification_email(app.config, email, code)
+        except (OSError, smtplib.SMTPException):
+            with db():
+                db().execute('DELETE FROM email_challenges WHERE email=? AND code_hash=?', (email, email_code_hash(email, code)))
+            return fail('인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.', 503)
+        return jsonify(sent=True), 202
+
+    @app.post('/api/auth/email/verify')
+    def verify_email_code():
+        data = payload()
+        email = text(data.get('email')).strip().lower()
+        code = text(data.get('code')).strip()
+        if len(email) > 254 or not EMAIL.fullmatch(email) or not re.fullmatch(r'\d{8}', code):
+            return fail('이메일과 8자리 코드를 확인해 주세요.')
+        if not rate_limit('email-check-ip', 20, 3600) or not rate_limit('email-check-address', 10, 3600, email):
+            return fail('인증 시도가 많습니다. 잠시 후 다시 시도해 주세요.', 429)
+        with db():
+            db().execute('BEGIN IMMEDIATE')
+            challenge = db().execute('SELECT * FROM email_challenges WHERE email=?', (email,)).fetchone()
+            if not challenge or challenge['expires_at'] < int(time.time()) or challenge['attempts'] >= 5:
+                return fail('코드가 만료되었거나 올바르지 않습니다.', 400)
+            if not hmac.compare_digest(challenge['code_hash'], email_code_hash(email, code)):
+                db().execute('UPDATE email_challenges SET attempts=attempts+1 WHERE email=?', (email,))
+                return fail('코드가 만료되었거나 올바르지 않습니다.', 400)
+            db().execute('DELETE FROM email_challenges WHERE email=?', (email,))
+        existing = db().execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
+        if existing and (not g.user or existing['id'] != g.user['id']):
+            return fail('이 이메일로 된 계정에 먼저 로그인해 주세요.', 409)
+        session['pending_registration'] = {'provider': 'email', 'email': email,
+                                           'user_id': existing['id'] if existing else None,
+                                           'issued_at': int(time.time())}
+        return jsonify(pendingRegistration=pending_public())
+
     @app.post('/api/auth/register')
     def register():
-        if not rate_limit('signup', 5, 3600):
+        if not rate_limit('signup', 10, 3600):
             return fail('가입 요청이 많습니다. 잠시 후 다시 시도해 주세요.', 429)
+        proof = pending_registration()
+        if not proof:
+            return fail('Google·GitHub 또는 이메일 코드로 먼저 신원을 확인해 주세요.', 403)
         data = payload()
         email = text(data.get('email')).strip().lower()
         name = text(data.get('name')).strip()
+        full_name = text(data.get('fullName')).strip()
         password = text(data.get('password'))
-        if len(email) > 254 or not EMAIL.fullmatch(email):
-            return fail('올바른 이메일 주소를 입력해 주세요.')
+        if email != proof['email']:
+            return fail('인증한 이메일과 가입 아이디가 일치하지 않습니다.', 403)
         if not 2 <= len(name) <= 30 or any(ord(c) < 32 for c in name):
             return fail('닉네임은 2~30자로 입력해 주세요.')
+        if not 2 <= len(full_name) <= 60 or any(ord(c) < 32 for c in full_name):
+            return fail('이름은 2~60자로 입력해 주세요.')
         if not 12 <= len(password) <= 128:
             return fail('비밀번호는 12~128자로 입력해 주세요.')
         hashed = PASSWORDS.hash(password)
-        user_id = secrets.token_hex(16)
+        user_id = proof.get('user_id') or secrets.token_hex(16)
         try:
             with db():
-                db().execute('INSERT INTO users VALUES(?,?,?,?,?)', (user_id, email, hashed, name, int(time.time())))
+                db().execute('BEGIN IMMEDIATE')
+                owner = db().execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
+                if owner and owner['id'] != user_id:
+                    return fail('이미 가입된 이메일입니다. 기존 계정으로 로그인한 뒤 인증해 주세요.', 409)
+                if proof['provider'] in ('google', 'github'):
+                    identity = db().execute('SELECT user_id FROM identities WHERE provider=? AND subject=?',
+                                            (proof['provider'], proof['subject'])).fetchone()
+                    if identity and identity['user_id'] != user_id:
+                        return fail('이미 다른 계정에 연결된 소셜 계정입니다.', 409)
+                if db().execute('SELECT 1 FROM users WHERE id=?', (user_id,)).fetchone():
+                    # Keys issued before the newly verified account must not
+                    # become usable merely because profile verification returns.
+                    db().execute('UPDATE api_keys SET revoked_at=COALESCE(revoked_at,?) WHERE user_id=?',
+                                 (int(time.time()), user_id))
+                    db().execute('UPDATE users SET email=?,password_hash=?,display_name=?,full_name=?,email_verified_at=?,registration_completed_at=? WHERE id=?',
+                                 (email, hashed, name, full_name, int(time.time()), int(time.time()), user_id))
+                    db().execute('DELETE FROM sessions WHERE user_id=?', (user_id,))
+                else:
+                    db().execute('INSERT INTO users(id,email,password_hash,display_name,created_at,full_name,email_verified_at,registration_completed_at) VALUES(?,?,?,?,?,?,?,?)',
+                                 (user_id, email, hashed, name, int(time.time()), full_name, int(time.time()), int(time.time())))
+                if proof['provider'] in ('google', 'github'):
+                    db().execute('INSERT INTO identities(provider,subject,user_id,provider_email) VALUES(?,?,?,?) '
+                                 'ON CONFLICT(provider,subject) DO UPDATE SET provider_email=excluded.provider_email',
+                                 (proof['provider'], proof['subject'], user_id, email))
         except sqlite3.IntegrityError:
-            return fail('이미 가입된 이메일입니다. 로그인해 주세요.', 409)
+            return fail('이 이메일 또는 소셜 계정은 이미 사용 중입니다.', 409)
+        session.clear()
         new_session(user_id)
         return jsonify(user=public_user(), csrfToken=csrf_token()), 201
 
@@ -341,7 +560,7 @@ def create_app(config=None):
             db().execute('DELETE FROM comments WHERE id=?', (comment_id,))
         return jsonify(ok=True)
 
-    register_portal(app, db, fail, payload, text, require_user, rate_limit, admins)
+    register_portal(app, db, fail, payload, text, require_verified_user, rate_limit, admins)
 
     oauth = OAuth(app)
     google_id = app.config.get('GOOGLE_CLIENT_ID', os.getenv('GOOGLE_CLIENT_ID'))
@@ -359,6 +578,33 @@ def create_app(config=None):
                        api_base_url='https://api.github.com/',
                        client_kwargs={'scope': 'read:user user:email', 'code_challenge_method': 'S256'})
 
+    def move_legacy_identity(provider, subject, source_id, target_id, email):
+        """Link only an empty legacy OAuth shell after both accounts are proven."""
+        with db():
+            db().execute('BEGIN IMMEDIATE')
+            source = db().execute('SELECT email,password_hash,email_verified_at,registration_completed_at FROM users WHERE id=?',
+                                  (source_id,)).fetchone()
+            target = db().execute('SELECT email FROM users WHERE id=?', (target_id,)).fetchone()
+            if (not source or not target or target['email'] != email or source['email'] or
+                    source['password_hash'] or source['email_verified_at'] or source['registration_completed_at']):
+                raise ValueError('Accounts require manual review')
+            if db().execute('SELECT count(*) FROM identities WHERE user_id=?', (source_id,)).fetchone()[0] != 1:
+                raise ValueError('Legacy identity has additional providers')
+            for table in ('api_keys', 'rentals', 'rental_permissions'):
+                if db().execute(f'SELECT 1 FROM {table} WHERE user_id=? LIMIT 1', (source_id,)).fetchone():
+                    raise ValueError('Legacy identity has resources')
+            identity = db().execute('SELECT user_id FROM identities WHERE provider=? AND subject=?',
+                                    (provider, subject)).fetchone()
+            if not identity or identity['user_id'] != source_id:
+                raise ValueError('Identity changed during linking')
+            db().execute('UPDATE comments SET user_id=? WHERE user_id=?', (target_id, source_id))
+            db().execute('UPDATE identities SET user_id=?,provider_email=? WHERE provider=? AND subject=?',
+                         (target_id, email, provider, subject))
+            db().execute('DELETE FROM sessions WHERE user_id=?', (source_id,))
+            # Keep the source user row for historic admin/download foreign keys.
+            db().execute('INSERT INTO admin_events(actor_id,action,target,created_at) VALUES(?,?,?,?)',
+                         (target_id, 'identity:explicit-link', source_id, int(time.time())))
+
     @app.get('/auth/<provider>')
     def oauth_begin(provider):
         if provider not in ('google', 'github'):
@@ -368,6 +614,16 @@ def create_app(config=None):
             return redirect('/?auth_error=unavailable')
         if not rate_limit('oauth', 30, 300):
             return fail('요청이 많습니다. 잠시 후 다시 시도해 주세요.', 429)
+        if request.args.get('link') == '1':
+            if (not g.user or session.get('link_user_id') != g.user['id'] or
+                    int(time.time()) - session.get('link_issued_at', 0) > PROOF_TTL or
+                    not g.authenticated_at or int(time.time()) - g.authenticated_at > PROOF_TTL):
+                session.pop('link_user_id', None)
+                session.pop('link_issued_at', None)
+                return redirect('/?auth_error=reauth_required')
+        else:
+            session.pop('link_user_id', None)
+            session.pop('link_issued_at', None)
         next_page = request.args.get('next', '/')
         session['next_page'] = next_page if next_page in pages or next_page == '/' else '/'
         return client.authorize_redirect(app.config['BASE_URL'] + f'/auth/{provider}/callback')
@@ -401,17 +657,55 @@ def create_app(config=None):
                 emails = client.get('user/emails', token=token, timeout=10)
                 emails.raise_for_status()
                 email = next((e['email'] for e in emails.json() if e.get('verified') and e.get('primary')), None)
+            email = text(email).strip().lower()
+            if len(email) > 254 or not EMAIL.fullmatch(email):
+                raise ValueError('Verified provider email is required')
             name = ''.join(c for c in str(name) if ord(c) >= 32).strip()[:30] or '회원'
-            # Never merge accounts by email: a provider subject is the identity key.
-            with db():
-                db().execute('BEGIN IMMEDIATE')
-                identity = db().execute('SELECT user_id FROM identities WHERE provider=? AND subject=?', (provider, subject)).fetchone()
-                user_id = identity['user_id'] if identity else secrets.token_hex(16)
-                if not identity:
-                    db().execute('INSERT INTO users VALUES(?,NULL,NULL,?,?)', (user_id, name, int(time.time())))
-                    db().execute('INSERT INTO identities VALUES(?,?,?,?)', (provider, subject, user_id, email))
+            link_target = session.get('link_user_id')
+            if link_target is not None and (
+                    not g.user or g.user['id'] != link_target or g.user['email'] != email or
+                    int(time.time()) - session.get('link_issued_at', 0) > PROOF_TTL or
+                    not g.authenticated_at or int(time.time()) - g.authenticated_at > PROOF_TTL):
+                session.clear()
+                return redirect('/?auth_error=account_conflict')
+            identity = db().execute('SELECT user_id FROM identities WHERE provider=? AND subject=?',
+                                    (provider, subject)).fetchone()
+            if link_target and identity and identity['user_id'] != link_target:
+                try:
+                    move_legacy_identity(provider, subject, identity['user_id'], link_target, email)
+                except ValueError:
+                    session.clear()
+                    return redirect('/?auth_error=link_conflict')
+                identity = db().execute('SELECT user_id FROM identities WHERE provider=? AND subject=?',
+                                        (provider, subject)).fetchone()
+            user_id = link_target or (identity['user_id'] if identity else None)
+            owner = db().execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
             session.clear()
-            new_session(user_id)
+            if owner and owner['id'] != user_id:
+                return redirect('/?auth_error=account_conflict')
+            if link_target and not identity:
+                with db():
+                    db().execute('INSERT INTO identities(provider,subject,user_id,provider_email) VALUES(?,?,?,?)',
+                                 (provider, subject, link_target, email))
+                identity = db().execute('SELECT user_id FROM identities WHERE provider=? AND subject=?',
+                                        (provider, subject)).fetchone()
+            if identity:
+                account = db().execute('SELECT email,email_verified_at,registration_completed_at FROM users WHERE id=?',
+                                       (user_id,)).fetchone()
+                if account and account['email'] == email and account['email_verified_at'] and account['registration_completed_at']:
+                    with db():
+                        db().execute('UPDATE identities SET provider_email=? WHERE provider=? AND subject=?',
+                                     (email, provider, subject))
+                    new_session(user_id)
+                    return redirect(next_page if next_page in pages or next_page == '/' else '/')
+                if account and account['email'] != email:
+                    with db():
+                        db().execute('UPDATE users SET email_verified_at=NULL,registration_completed_at=NULL WHERE id=?', (user_id,))
+                        db().execute('UPDATE api_keys SET revoked_at=COALESCE(revoked_at,?) WHERE user_id=?', (int(time.time()), user_id))
+                        db().execute('DELETE FROM sessions WHERE user_id=?', (user_id,))
+            session['pending_registration'] = {'provider': provider, 'subject': subject,
+                                               'email': email, 'suggested_name': name,
+                                               'user_id': user_id, 'issued_at': int(time.time())}
             return redirect(next_page if next_page in pages or next_page == '/' else '/')
         except Exception:
             # Tokens and provider errors can contain secrets; do not print them.

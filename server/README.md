@@ -5,7 +5,7 @@
 
 ## 프로그램별 다운로드 API 키
 
-사이트의 `/downloads/<파일명>`은 로그인 회원의 세션을 확인합니다. 외부 프로그램은
+사이트의 `/downloads/<파일명>`은 이메일 인증과 회원가입을 마친 회원의 세션을 확인합니다. 외부 프로그램은
 `Authorization: Bearer ...` 헤더로 프로그램별 API를 호출합니다. 키는 발급 직후 한 번만
 표시하며 DB에는 SHA-256 해시만 저장합니다. 한 키는 한 프로그램의 파일에만 접근하고,
 7·30·90일 만료, 폐기, 마지막 사용·사용 횟수를 지원합니다. 활성 키는 회원당 5개입니다.
@@ -130,7 +130,19 @@ sudo systemctl enable --now habang
 ## Google / GitHub OAuth 앱 등록
 
 OAuth API는 사이트 운영자 계정으로 등록한 Client ID와 Client Secret이 필요합니다.
-값이 비어 있는 제공자는 UI에서 준비 중으로 표시되며 이메일 회원가입은 사용할 수 있습니다.
+값이 비어 있는 제공자는 UI에서 준비 중으로 표시됩니다. Google 또는 GitHub에서 검증된
+이메일을 확인한 다음 사이트의 별도 회원가입에서 해당 이메일을 아이디로 사용하고 비밀번호,
+닉네임, 이름을 등록합니다. OAuth 인증만으로는 다운로드, API 키, 대여, 관리자 기능을 사용할
+수 없습니다. 기존 비밀번호 계정은 로그인한 상태에서 같은 이메일의 Google/GitHub 인증을
+진행하면 기존 회원 ID와 댓글을 유지하면서 인증을 완료할 수 있습니다. 연결 시작은
+CSRF 검사를 받는 `POST /api/auth/link/<provider>`에서 발급한 10분짜리 의도가 필요하며,
+비밀번호 로그인도 최근 10분 안에 이루어져야 합니다. 이메일만 일치하는 다른 계정은
+자동으로 합치지 않습니다. 이전 소셜 계정이 이메일·비밀번호·키·대여·자동 승인 권한 없이
+생긴 계정이고 해당 제공자 신원만 가진 경우, 두 인증을 완료하면 그 계정의 댓글을 기존
+이메일 계정으로 옮기고 소셜 신원을 연결합니다. 이전 계정 행은 감사 기록 보존을 위해
+남고, 이전 계정의 세션은 폐기됩니다. 이전 소셜 계정의 ID가 `ADMIN_USER_IDS`에 있던
+경우 운영자는 환경 설정에 연결 후 유지할 이메일 계정 ID를 추가해야 관리자 기능을
+계속 사용할 수 있습니다. 이 설정 변경은 자동으로 처리하지 않습니다.
 
 Google Cloud Console의 Google Auth Platform에서 외부 사용자를 위한 앱과 웹 애플리케이션
 클라이언트를 만듭니다. 범위는 `openid email profile`입니다.
@@ -151,10 +163,16 @@ GITHUB_CLIENT_ID
 GITHUB_CLIENT_SECRET
 ```
 
-이메일 계정과 소셜 계정은 이메일이 같아도 자동으로 합치지 않습니다.
+SMTP 메일 발송 설정이 없다면 이메일 코드 가입은 비활성화됩니다. 필요하면
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`(`starttls` 또는 `ssl`), `SMTP_FROM`,
+선택적으로 `SMTP_USER`와 `SMTP_PASSWORD`를 환경 파일에 설정합니다. 이메일 코드는
+8자리, 유효기간 10분, 최대 5회 입력입니다. 코드 원문은 응답이나 DB에 저장하지 않습니다.
+메일 서비스가 없어도 Google/GitHub를 통한 이메일 확인과 별도 가입은 사용할 수 있습니다.
+
 소셜 로그인은 제공자별 고유 사용자 ID로 식별하고 Authlib의 OAuth state, PKCE,
 Google ID 토큰 서명·issuer·audience·nonce 검증을 사용합니다.
-자체 가입 이메일의 소유권 확인 및 비밀번호 재설정 메일 기능은 현재 포함하지 않습니다.
+GitHub는 기본 이메일이 `verified=true`인 경우만 가입을 진행합니다. 비밀번호 재설정
+메일 기능은 현재 포함하지 않습니다.
 
 참고: [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect),
 [GitHub OAuth 웹 흐름](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps).
@@ -162,6 +180,8 @@ Google ID 토큰 서명·issuer·audience·nonce 검증을 사용합니다.
 ## 운영 · 검증
 
 회원 비밀번호는 Argon2id 해시로 저장하고 로그인 세션은 서버 DB에서 폐기할 수 있습니다.
+익명 CSRF 세션은 DB 행을 만들지 않는 30분짜리 서명 쿠키이며 새 발급은 IP당 시간당
+300회로 제한합니다. 기존 익명 DB 세션은 마이그레이션 때 제거됩니다.
 세션 쿠키는 HttpOnly, SameSite=Lax이며 HTTPS에서는 Secure 및 `__Host-` 접두사를 사용합니다.
 쓰기 API는 Origin과 CSRF 토큰을 검사하고, 로그인·회원가입·댓글 작성에 DB 기반 속도 제한을 적용합니다.
 댓글 HTML은 실행하지 않고 텍스트로 표시합니다. 이메일은 댓글 API에 노출하지 않습니다.

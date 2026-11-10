@@ -1,12 +1,15 @@
 import os
+import hashlib
+import hmac
 import sqlite3
 import tempfile
+import time
 import unittest
 from contextlib import closing
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from app import create_app
+from app import ANON_SESSION_TTL, PASSWORDS, create_app
 
 
 class CommunityTests(unittest.TestCase):
@@ -20,11 +23,17 @@ class CommunityTests(unittest.TestCase):
                            GITHUB_CLIENT_ID='', GITHUB_CLIENT_SECRET='')
         self.config['TRUST_PROXY'] = False
         self.config['ALIAS_HOSTS'] = ''
+        self.config['SMTP_HOST'] = 'smtp.test.invalid'
+        self.config['SMTP_FROM'] = 'noreply@test.example'
+        self.mail = []
+        self.mail_patch = patch('app.send_verification_email', side_effect=lambda _config, email, code: self.mail.append((email, code)))
+        self.mail_patch.start()
         self.app = create_app(self.config)
         self.client = self.app.test_client()
         self.csrf = self.start(self.client)
 
     def tearDown(self):
+        self.mail_patch.stop()
         self.temp.cleanup()
 
     def start(self, client):
@@ -37,9 +46,18 @@ class CommunityTests(unittest.TestCase):
             base_url='https://test.example', headers={'Origin': 'https://test.example',
             'X-CSRF-Token': self.csrf if csrf is None else csrf})
 
+    def verify_address(self, email='member@example.com', client=None, csrf=None):
+        started = self.write('/api/auth/email/start', {'email': email}, client=client, csrf=csrf)
+        self.assertEqual(started.status_code, 202, started.json)
+        self.assertEqual(self.mail[-1][0], email.lower())
+        checked = self.write('/api/auth/email/verify', {'email': email, 'code': self.mail[-1][1]}, client=client, csrf=csrf)
+        self.assertEqual(checked.status_code, 200, checked.json)
+        return checked
+
     def signup(self, email='member@example.com', name='테스트 회원', client=None, csrf=None):
+        self.verify_address(email, client=client, csrf=csrf)
         res = self.write('/api/auth/register', {'email': email, 'name': name,
-            'password': 'correct horse battery staple'}, client=client, csrf=csrf)
+            'fullName': '테스트 이름', 'password': 'correct horse battery staple'}, client=client, csrf=csrf)
         self.assertEqual(res.status_code, 201, res.json)
         if client is None:
             self.csrf = res.json['csrfToken']
@@ -65,6 +83,8 @@ class CommunityTests(unittest.TestCase):
         res = self.write('/api/auth/login', {'email': 'MEMBER@EXAMPLE.COM', 'password': 'correct horse battery staple'})
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json['user']['name'], '테스트 회원')
+        self.assertTrue(res.json['user']['verified'])
+        self.assertTrue(res.json['user']['registrationComplete'])
 
     def test_csrf_and_origin_are_required(self):
         data = {'email': 'member@example.com', 'name': '회원', 'password': 'correct horse battery staple'}
@@ -103,10 +123,18 @@ class CommunityTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/comments?page=/', base_url='https://test.example').json['total'], 0)
 
     def test_validation_and_rate_limits(self):
-        for name, email, password in [('a', 'a@example.com', 'a' * 12), ('valid', 'bad', 'a' * 12), ('valid', 'a@example.com', 'short')]:
-            self.assertEqual(self.write('/api/auth/register', {'name': name, 'email': email, 'password': password}).status_code, 400)
-        self.signup()
-        self.assertEqual(self.write('/api/auth/register', {'name': '회원', 'email': 'MEMBER@example.com', 'password': 'a' * 12}).status_code, 409)
+        self.assertEqual(self.write('/api/auth/register', {'name': '회원', 'email': 'member@example.com', 'fullName': '테스트 이름', 'password': 'a' * 12}).status_code, 403)
+        self.verify_address()
+        for name, email, full_name, password, expected in [
+            ('a', 'member@example.com', '테스트 이름', 'a' * 12, 400),
+            ('valid', 'bad', '테스트 이름', 'a' * 12, 403),
+            ('valid', 'member@example.com', 'a', 'a' * 12, 400),
+            ('valid', 'member@example.com', '테스트 이름', 'short', 400),
+        ]:
+            self.assertEqual(self.write('/api/auth/register', {'name': name, 'email': email, 'fullName': full_name, 'password': password}).status_code, expected)
+        registered = self.write('/api/auth/register', {'name': '테스트 회원', 'email': 'member@example.com', 'fullName': '테스트 이름', 'password': 'correct horse battery staple'})
+        self.assertEqual(registered.status_code, 201)
+        self.csrf = registered.json['csrfToken']
         self.assertEqual(self.write('/api/comments', {'page': '/missing.html', 'body': 'test'}).status_code, 404)
         self.assertEqual(self.write('/api/comments', {'page': '/', 'body': ' '}).status_code, 400)
         self.assertEqual(self.write('/api/comments', {'page': '/', 'body': 'a' * 2001}).status_code, 400)
@@ -123,13 +151,96 @@ class CommunityTests(unittest.TestCase):
             res = self.client.get('/' + page.name, base_url='https://test.example')
             self.assertEqual(res.status_code, 200)
             self.assertIn(b'/community.js?v=3', res.data)
-            self.assertIn(b'/community.css?v=3', res.data)
+            self.assertIn(b'/community.css?v=', res.data)
             res.close()
         res = self.client.get('/community.js', base_url='https://test.example')
         self.assertNotIn(b'innerHTML', res.data)
         self.assertIn("script-src 'self'", res.headers['Content-Security-Policy'])
         self.assertEqual(res.headers['X-Content-Type-Options'], 'nosniff')
         res.close()
+
+    def test_email_challenge_is_required_hashed_limited_and_disabled_without_mail(self):
+        missing = create_app({**self.config, 'SMTP_HOST': '', 'SMTP_FROM': ''}).test_client()
+        csrf = self.start(missing)
+        self.assertFalse(missing.get('/api/session', base_url='https://test.example').json['emailVerificationAvailable'])
+        self.assertEqual(self.write('/api/auth/email/start', {'email': 'other@example.com'}, client=missing, csrf=csrf).status_code, 503)
+        self.assertEqual(self.write('/api/auth/register', {'email': 'other@example.com', 'name': '회원', 'fullName': '테스트 이름', 'password': 'a' * 12}, client=missing, csrf=csrf).status_code, 403)
+        self.assertEqual(self.write('/api/auth/email/start', {'email': 'member@example.com'}).status_code, 202)
+        code = self.mail[-1][1]
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            stored = connection.execute('SELECT code_hash FROM email_challenges WHERE email=?', ('member@example.com',)).fetchone()[0]
+        self.assertNotEqual(stored, code)
+        for _ in range(5):
+            self.assertEqual(self.write('/api/auth/email/verify', {'email': 'member@example.com', 'code': '00000000'}).status_code, 400)
+        self.assertEqual(self.write('/api/auth/email/verify', {'email': 'member@example.com', 'code': code}).status_code, 400)
+        self.assertEqual(self.write('/api/auth/email/start', {'email': 'member@example.com'}).status_code, 202)
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            connection.execute('UPDATE email_challenges SET expires_at=0 WHERE email=?', ('member@example.com',))
+            connection.commit()
+        self.assertEqual(self.write('/api/auth/email/verify', {'email': 'member@example.com', 'code': self.mail[-1][1]}).status_code, 400)
+
+    def test_anonymous_sessions_are_short_lived_stateless_and_rate_limited(self):
+        cookie = self.client.get_cookie('__Host-habang_sid', domain='test.example').value
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            self.assertEqual(connection.execute('SELECT count(*) FROM sessions').fetchone()[0], 0)
+        response = self.client.get('/api/session', base_url='https://test.example')
+        self.assertEqual(self.client.get_cookie('__Host-habang_sid', domain='test.example').value, cookie)
+        self.assertNotIn('Set-Cookie', response.headers)
+        expired_raw = f'a.{int(time.time()) - ANON_SESSION_TTL - 1}.expired'
+        signature = hmac.new(self.config['SECRET_KEY'].encode(), expired_raw.encode(), hashlib.sha256).hexdigest()
+        self.client.set_cookie('__Host-habang_sid', expired_raw + '.' + signature, domain='test.example')
+        refreshed = self.client.get('/api/session', base_url='https://test.example')
+        self.assertEqual(refreshed.status_code, 200)
+        self.assertIn('Max-Age=1800', refreshed.headers['Set-Cookie'])
+        self.assertNotEqual(self.client.get_cookie('__Host-habang_sid', domain='test.example').value, cookie)
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            self.assertEqual(connection.execute('SELECT count(*) FROM sessions').fetchone()[0], 0)
+        for _ in range(298):
+            self.assertEqual(self.app.test_client().get('/api/session', base_url='https://test.example').status_code, 200)
+        self.assertEqual(self.app.test_client().get('/api/session', base_url='https://test.example').status_code, 429)
+        self.assertEqual(self.app.test_client().get('/api/session', base_url='https://test.example', environ_overrides={'REMOTE_ADDR': '198.51.100.2'}).status_code, 200)
+
+    def test_legacy_admin_recovers_by_explicit_oauth_link_without_losing_id(self):
+        old_db = str(Path(self.temp.name) / 'legacy.sqlite3')
+        legacy_id = 'legacy-admin'
+        with closing(sqlite3.connect(old_db)) as connection:
+            connection.execute('CREATE TABLE users (id TEXT PRIMARY KEY,email TEXT UNIQUE COLLATE NOCASE,password_hash TEXT,display_name TEXT NOT NULL,created_at INTEGER NOT NULL)')
+            connection.execute('CREATE TABLE sessions (token_hash TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),expires_at INTEGER NOT NULL)')
+            connection.execute('INSERT INTO users VALUES(?,?,?,?,?)', (legacy_id, 'legacy@example.com', PASSWORDS.hash('old correct horse battery staple'), '관리자', int(time.time())))
+            connection.execute('INSERT INTO sessions VALUES(?,?,?)', ('old-anonymous', None, int(time.time()) + 86400))
+            connection.commit()
+        app = create_app({**self.config, 'DATABASE': old_db, 'ADMIN_USER_IDS': legacy_id,
+                          'GOOGLE_CLIENT_ID': 'test-id', 'GOOGLE_CLIENT_SECRET': 'test-secret'})
+        with closing(sqlite3.connect(old_db)) as connection:
+            self.assertEqual(connection.execute('SELECT count(*) FROM sessions').fetchone()[0], 0)
+        client = app.test_client()
+        csrf = self.start(client)
+        login = self.write('/api/auth/login', {'email': 'legacy@example.com', 'password': 'old correct horse battery staple'}, client=client, csrf=csrf)
+        self.assertEqual(login.json['user']['id'], legacy_id)
+        self.assertFalse(login.json['user']['verified'])
+        self.assertEqual(client.get('/api/admin/overview', base_url='https://test.example').status_code, 403)
+        self.assertEqual(self.write('/api/auth/link/google', {'next': '/'}, client=client, csrf=login.json['csrfToken']).status_code, 200)
+        provider = app.extensions['authlib.integrations.flask_client'].create_client('google')
+        with patch.object(provider, 'authorize_access_token', return_value={'userinfo': {
+            'sub': 'google-legacy-admin', 'email': 'legacy@example.com', 'email_verified': True, 'name': '관리자'}}):
+            self.assertEqual(client.get('/auth/google/callback', base_url='https://test.example').location, '/')
+        self.assertEqual(client.get('/api/session', base_url='https://test.example').json['pendingRegistration']['email'], 'legacy@example.com')
+        complete = self.write('/api/auth/register', {'email': 'legacy@example.com', 'name': '관리자',
+            'fullName': '관리자 이름', 'password': 'new correct horse battery staple'}, client=client, csrf=login.json['csrfToken'])
+        self.assertEqual(complete.status_code, 201, complete.json)
+        self.assertEqual(complete.json['user']['id'], legacy_id)
+        self.assertEqual(client.get('/api/admin/overview', base_url='https://test.example').status_code, 200)
+        with closing(sqlite3.connect(old_db)) as connection:
+            self.assertEqual(connection.execute('SELECT count(*) FROM users').fetchone()[0], 1)
+            connection.execute('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)', ('expired-authenticated', legacy_id, 0))
+            connection.commit()
+        csrf = complete.json['csrfToken']
+        self.assertEqual(self.write('/api/auth/logout', {}, client=client, csrf=csrf).status_code, 200)
+        relogin = self.write('/api/auth/login', {'email': 'legacy@example.com', 'password': 'new correct horse battery staple'}, client=client,
+                             csrf=self.start(client))
+        self.assertEqual(relogin.status_code, 200)
+        with closing(sqlite3.connect(old_db)) as connection:
+            self.assertEqual(connection.execute('SELECT count(*) FROM sessions WHERE token_hash=?', ('expired-authenticated',)).fetchone()[0], 0)
 
     def test_oauth_is_disabled_until_credentials_are_configured(self):
         res = self.client.get('/api/session', base_url='https://test.example')
@@ -148,6 +259,34 @@ class CommunityTests(unittest.TestCase):
         res = client.get('/auth/github/callback?code=fake&state=invalid', base_url='https://test.example')
         self.assertEqual(res.location, '/?auth_error=failed')
         self.assertIsNone(client.get('/api/session', base_url='https://test.example').json['user'])
+
+    def test_github_requires_a_verified_primary_email_before_signup(self):
+        app = create_app({**self.config, 'GITHUB_CLIENT_ID': 'test-id', 'GITHUB_CLIENT_SECRET': 'test-secret'})
+        client = app.test_client()
+        provider = app.extensions['authlib.integrations.flask_client'].create_client('github')
+        user = Mock(); user.json.return_value = {'id': 42, 'name': 'Github 회원'}
+        def callback(emails):
+            email_response = Mock(); email_response.json.return_value = emails
+            with patch.object(provider, 'authorize_access_token', return_value={'access_token': 'test-token'}), \
+                 patch.object(provider, 'get', side_effect=[user, email_response]):
+                return client.get('/auth/github/callback', base_url='https://test.example')
+        self.assertEqual(callback([{'email': 'github@example.com', 'primary': True, 'verified': False}]).location, '/?auth_error=failed')
+        self.assertIsNone(client.get('/api/session', base_url='https://test.example').json['pendingRegistration'])
+        self.assertEqual(callback([{'email': 'github@example.com', 'primary': True, 'verified': True}]).location, '/')
+        pending = client.get('/api/session', base_url='https://test.example').json['pendingRegistration']
+        self.assertEqual(pending['email'], 'github@example.com')
+        self.assertEqual(pending['provider'], 'github')
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            self.assertEqual(connection.execute('SELECT count(*) FROM users').fetchone()[0], 0)
+
+    def test_verified_signup_proof_expires(self):
+        self.verify_address()
+        with patch('app.PROOF_TTL', -1):
+            attempt = self.write('/api/auth/register', {'email': 'member@example.com', 'name': '회원',
+                'fullName': '테스트 이름', 'password': 'correct horse battery staple'})
+        self.assertEqual(attempt.status_code, 403)
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            self.assertEqual(connection.execute('SELECT count(*) FROM users').fetchone()[0], 0)
 
     def test_login_limit_survives_restarts(self):
         for _ in range(10):
@@ -176,41 +315,137 @@ class CommunityTests(unittest.TestCase):
         app = create_app({**self.config, 'GOOGLE_CLIENT_ID': 'test-id', 'GOOGLE_CLIENT_SECRET': 'test-secret'})
         client = app.test_client()
         provider = app.extensions['authlib.integrations.flask_client'].create_client('google')
-        def callback(subject, verified=True):
+        def callback(subject, email='member@example.com', verified=True):
             # Mock only the provider boundary; state/PKCE failure has a separate real-library test.
-            info = dict(sub=subject, email='member@example.com', email_verified=verified, name='소셜 회원')
+            info = dict(sub=subject, email=email, email_verified=verified, name='소셜 회원')
             with patch.object(provider, 'authorize_access_token', return_value={'userinfo': info}):
                 response = client.get('/auth/google/callback', base_url='https://test.example')
-            return response, client.get('/api/session', base_url='https://test.example').json['user']
-        _, first = callback('provider-user-1')
-        self.assertNotEqual(first['id'], local_id)
+            return response, client.get('/api/session', base_url='https://test.example').json
+        conflict, state = callback('provider-user-1')
+        self.assertEqual(conflict.location, '/?auth_error=account_conflict')
+        self.assertIsNone(state['user'])
+        self.assertIsNone(state['pendingRegistration'])
+        csrf = self.start(client)
+        login = self.write('/api/auth/login', {'email': 'member@example.com', 'password': 'correct horse battery staple'}, client=client, csrf=csrf)
+        self.assertEqual(login.status_code, 200)
+        link = self.write('/api/auth/link/google', {'next': '/'}, client=client, csrf=login.json['csrfToken'])
+        self.assertEqual(link.status_code, 200)
+        linked, state = callback('provider-user-1')
+        self.assertEqual(linked.location, '/')
+        self.assertIsNone(state['pendingRegistration'])
+        self.assertEqual(state['user']['id'], local_id)
         _, again = callback('provider-user-1')
-        self.assertEqual(first['id'], again['id'])
-        _, second = callback('provider-user-2')
-        self.assertNotEqual(first['id'], second['id'])
-        failed, _ = callback('unverified', False)
+        self.assertEqual(again['user']['id'], local_id)
+        _, pending = callback('provider-user-2', email='other@example.com')
+        self.assertIsNone(pending['user'] if pending['user'] and pending['user']['email'] == 'other@example.com' else None)
+        self.assertEqual(pending['pendingRegistration']['email'], 'other@example.com')
+        csrf = pending['csrfToken']
+        second = self.write('/api/auth/register', {'email': 'other@example.com', 'name': '다른 회원',
+            'fullName': '다른 이름', 'password': 'correct horse battery staple'}, client=client, csrf=csrf)
+        self.assertEqual(second.status_code, 201, second.json)
+        self.assertNotEqual(second.json['user']['id'], local_id)
+        failed, _ = callback('unverified', verified=False)
         self.assertEqual(failed.location, '/?auth_error=failed')
         with closing(sqlite3.connect(self.config['DATABASE'])) as db:
-            self.assertEqual(db.execute('SELECT count(*) FROM users').fetchone()[0], 3)
+            self.assertEqual(db.execute('SELECT count(*) FROM users').fetchone()[0], 2)
+
+    def test_explicit_link_preserves_legacy_comment_and_requires_both_proofs(self):
+        local_id = self.signup().json['user']['id']
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            for shell_id, provider, subject in [('google-shell', 'google', 'google-old'), ('github-shell', 'github', '77')]:
+                connection.execute('INSERT INTO users(id,email,password_hash,display_name,created_at) VALUES(?,NULL,NULL,?,?)',
+                                   (shell_id, provider + ' 이전 계정', int(time.time())))
+                connection.execute('INSERT INTO identities VALUES(?,?,?,?)', (provider, subject, shell_id, 'member@example.com'))
+            connection.execute('INSERT INTO comments(page,user_id,body,created_at,updated_at) VALUES(?,?,?,?,?)',
+                               ('/', 'google-shell', '기존 소셜 댓글', 1, 1))
+            connection.execute('UPDATE users SET email_verified_at=NULL,registration_completed_at=NULL WHERE id=?', (local_id,))
+            connection.commit()
+        app = create_app({**self.config, 'GOOGLE_CLIENT_ID': 'test-id', 'GOOGLE_CLIENT_SECRET': 'test-secret',
+                          'GITHUB_CLIENT_ID': 'test-id', 'GITHUB_CLIENT_SECRET': 'test-secret',
+                          'ADMIN_USER_IDS': 'google-shell,github-shell'})
+        client = app.test_client()
+        csrf = self.start(client)
+        login = self.write('/api/auth/login', {'email': 'member@example.com', 'password': 'correct horse battery staple'}, client=client, csrf=csrf)
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual(client.get('/auth/google?link=1', base_url='https://test.example').location, '/?auth_error=reauth_required')
+        self.assertEqual(self.write('/api/auth/link/google', {'next': '/'}, client=client, csrf=login.json['csrfToken']).status_code, 200)
+        google = app.extensions['authlib.integrations.flask_client'].create_client('google')
+        with patch.object(google, 'authorize_redirect', return_value='started'):
+            self.assertEqual(client.get('/auth/google?link=1', base_url='https://test.example').status_code, 200)
+        with patch.object(google, 'authorize_access_token', return_value={'userinfo': {
+            'sub': 'google-old', 'email': 'member@example.com', 'email_verified': True, 'name': 'Google 회원'}}):
+            self.assertEqual(client.get('/auth/google/callback', base_url='https://test.example').location, '/')
+        pending = client.get('/api/session', base_url='https://test.example').json
+        self.assertEqual(pending['pendingRegistration']['email'], 'member@example.com')
+        completed = self.write('/api/auth/register', {'email': 'member@example.com', 'name': '통합 회원',
+            'fullName': '테스트 이름', 'password': 'new correct horse battery staple'}, client=client, csrf=pending['csrfToken'])
+        self.assertEqual(completed.status_code, 201, completed.json)
+        self.assertEqual(completed.json['user']['id'], local_id)
+        self.assertFalse(completed.json['user']['isAdmin'])
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            self.assertEqual(connection.execute('SELECT user_id FROM comments WHERE body=?', ('기존 소셜 댓글',)).fetchone()[0], local_id)
+            self.assertEqual(connection.execute('SELECT user_id FROM identities WHERE provider=?', ('google',)).fetchone()[0], local_id)
+            self.assertIsNotNone(connection.execute('SELECT id FROM users WHERE id=?', ('google-shell',)).fetchone())
+        self.assertEqual(self.write('/api/auth/link/github', {'next': '/'}, client=client, csrf=completed.json['csrfToken']).status_code, 200)
+        github = app.extensions['authlib.integrations.flask_client'].create_client('github')
+        user = Mock(); user.json.return_value = {'id': 77, 'login': 'old-github'}
+        emails = Mock(); emails.json.return_value = [{'email': 'member@example.com', 'primary': True, 'verified': True}]
+        with patch.object(github, 'authorize_access_token', return_value={'access_token': 'test-token'}), \
+             patch.object(github, 'get', side_effect=[user, emails]):
+            self.assertEqual(client.get('/auth/github/callback', base_url='https://test.example').location, '/')
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            self.assertEqual(connection.execute('SELECT user_id FROM identities WHERE provider=?', ('github',)).fetchone()[0], local_id)
+        new_admin = create_app({**self.config, 'ADMIN_USER_IDS': local_id})
+        admin_client = new_admin.test_client()
+        admin_csrf = self.start(admin_client)
+        result = self.write('/api/auth/login', {'email': 'member@example.com', 'password': 'new correct horse battery staple'},
+                            client=admin_client, csrf=admin_csrf)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(admin_client.get('/api/admin/overview', base_url='https://test.example').status_code, 200)
+
+    def test_explicit_link_refuses_legacy_identity_with_resources(self):
+        local_id = self.signup().json['user']['id']
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            connection.execute('INSERT INTO users(id,email,password_hash,display_name,created_at) VALUES(?,NULL,NULL,?,?)',
+                               ('busy-shell', '이전 계정', int(time.time())))
+            connection.execute('INSERT INTO identities VALUES(?,?,?,?)', ('google', 'busy-subject', 'busy-shell', 'member@example.com'))
+            connection.execute('INSERT INTO api_keys(id,user_id,name,token_hash,prefix,scopes,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)',
+                               ('busy-key', 'busy-shell', '이전 키', 'hash', 'prefix', '[]', 1, 9999999999))
+            connection.commit()
+        app = create_app({**self.config, 'GOOGLE_CLIENT_ID': 'test-id', 'GOOGLE_CLIENT_SECRET': 'test-secret'})
+        client = app.test_client()
+        csrf = self.start(client)
+        login = self.write('/api/auth/login', {'email': 'member@example.com', 'password': 'correct horse battery staple'}, client=client, csrf=csrf)
+        self.assertEqual(self.write('/api/auth/link/google', {'next': '/'}, client=client, csrf=login.json['csrfToken']).status_code, 200)
+        provider = app.extensions['authlib.integrations.flask_client'].create_client('google')
+        with patch.object(provider, 'authorize_access_token', return_value={'userinfo': {
+            'sub': 'busy-subject', 'email': 'member@example.com', 'email_verified': True, 'name': '이전 계정'}}):
+            self.assertEqual(client.get('/auth/google/callback', base_url='https://test.example').location, '/?auth_error=link_conflict')
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            self.assertEqual(connection.execute('SELECT user_id FROM identities WHERE subject=?', ('busy-subject',)).fetchone()[0], 'busy-shell')
+            self.assertEqual(connection.execute('SELECT count(*) FROM users').fetchone()[0], 2)
 
     def test_rate_limit_uses_only_trusted_local_proxy_addresses(self):
         def attempts(trust_proxy, remote_addr):
             app = create_app({**self.config, 'TRUST_PROXY': trust_proxy})
             client = app.test_client()
             csrf = self.start(client)
+            counter = 0
             def attempt(forwarded):
-                return client.post('/api/auth/register', base_url='https://test.example', json={},
+                nonlocal counter
+                counter += 1
+                return client.post('/api/auth/email/start', base_url='https://test.example', json={'email': f'person{counter}@example.com'},
                     environ_overrides={'REMOTE_ADDR': remote_addr}, headers={
                     'Origin': 'https://test.example', 'X-CSRF-Token': csrf, 'X-Forwarded-For': forwarded}).status_code
             return attempt
         local = attempts(True, '127.0.0.1')
         for _ in range(5):
-            self.assertEqual(local('198.51.100.1'), 400)
+            self.assertEqual(local('198.51.100.1'), 202)
         self.assertEqual(local('198.51.100.1'), 429)
-        self.assertEqual(local('198.51.100.2'), 400)
+        self.assertEqual(local('198.51.100.2'), 202)
         external = attempts(True, '203.0.113.1')
         for i in range(5):
-            self.assertEqual(external(f'192.0.2.{i}'), 400)
+            self.assertEqual(external(f'192.0.2.{i}'), 202)
         self.assertEqual(external('192.0.2.99'), 429)
 
     def test_aliases_redirect_only_reads_to_the_fixed_canonical_origin(self):

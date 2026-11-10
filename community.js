@@ -1,13 +1,13 @@
 (() => {
   'use strict';
   const page = location.pathname === '/index.html' ? '/' : location.pathname;
-  let state = {user: null, csrfToken: '', providers: {}};
+  let state = {user: null, csrfToken: '', providers: {}, pendingRegistration: null, emailVerificationAvailable: false};
   let nextBefore = null;
   let mode = 'login';
   let ready = false;
   let lastFocus = null;
   function resumeDownload() {
-    if (!state.user) return;
+    if (!state.user?.verified || !state.user?.registrationComplete) return;
     const path = sessionStorage.getItem('habang:download');
     sessionStorage.removeItem('habang:download');
     if (path && /^\/downloads\/[A-Za-z0-9_.-]+$/.test(path)) location.assign(path);
@@ -16,8 +16,8 @@
     const anchor = event.target.closest('a[href]');
     if (!anchor) return;
     const url = new URL(anchor.href, location.href);
-    if (url.origin === location.origin && /^\/downloads\/[A-Za-z0-9_.-]+$/.test(url.pathname) && url.pathname !== '/downloads/manifest.json' && !state.user) {
-      event.preventDefault(); sessionStorage.setItem('habang:download', url.pathname); showAuth('login');
+    if (url.origin === location.origin && /^\/downloads\/[A-Za-z0-9_.-]+$/.test(url.pathname) && url.pathname !== '/downloads/manifest.json' && (!state.user?.verified || !state.user?.registrationComplete)) {
+      event.preventDefault(); sessionStorage.setItem('habang:download', url.pathname); showAuth(state.user ? 'register' : 'login');
     }
   });
   const el = (tag, className, text) => {
@@ -71,12 +71,45 @@
     const a = el('a', 'hb-provider');
     a.append(el('span', 'hb-provider-mark', mark), el('span', '', label));
     a.href = `/auth/${key}?next=${encodeURIComponent(page)}`;
-    a.addEventListener('click', event => {
-      if (!state.providers[key]) { event.preventDefault(); authStatus.textContent = '아직 준비 중인 로그인 방식입니다. 이메일로 가입하거나 로그인해 주세요.'; }
+    a.addEventListener('click', async event => {
+      if (!state.providers[key]) { event.preventDefault(); authStatus.textContent = '아직 준비 중인 인증 방식입니다.'; return; }
+      if (state.user) {
+        event.preventDefault();
+        try {
+          const result = await api(`/api/auth/link/${key}`, {method: 'POST', body: JSON.stringify({next: page})});
+          location.assign(result.url);
+        } catch (error) { authStatus.textContent = error.message; }
+      }
     });
     providerLinks[key] = a; social.append(a);
   }
-  const divider = el('p', 'hb-divider', '또는 이메일로 계속하기');
+  const divider = el('p', 'hb-divider', '또는 이메일로 로그인');
+  const verification = el('div', 'hb-form');
+  const verificationEmailLabel = el('label', 'hb-field', '인증할 이메일');
+  const verificationEmail = el('input'); verificationEmail.type = 'email'; verificationEmail.autocomplete = 'email'; verificationEmail.maxLength = 254;
+  verificationEmailLabel.append(verificationEmail);
+  const sendCode = button('인증 코드 보내기', async () => {
+    sendCode.disabled = true; authStatus.textContent = '인증 메일을 보내는 중…';
+    try {
+      await api('/api/auth/email/start', {method: 'POST', body: JSON.stringify({email: verificationEmail.value})});
+      verificationCode.hidden = false; authStatus.textContent = '메일로 받은 8자리 코드를 입력해 주세요.';
+    } catch (error) { authStatus.textContent = error.message; }
+    finally { sendCode.disabled = false; }
+  });
+  const verificationCode = el('div', 'hb-form'); verificationCode.hidden = true;
+  const codeLabel = el('label', 'hb-field', '8자리 인증 코드');
+  const codeInput = el('input'); codeInput.inputMode = 'numeric'; codeInput.pattern = '[0-9]{8}'; codeInput.maxLength = 8;
+  codeLabel.append(codeInput);
+  const verifyCode = button('이메일 확인', async () => {
+    verifyCode.disabled = true; authStatus.textContent = '인증 코드를 확인하는 중…';
+    try {
+      const result = await api('/api/auth/email/verify', {method: 'POST', body: JSON.stringify({email: verificationEmail.value, code: codeInput.value})});
+      state = {...state, ...result}; setMode('register'); authStatus.textContent = '이메일이 확인되었습니다. 회원 정보를 입력해 주세요.';
+    } catch (error) { authStatus.textContent = error.message; }
+    finally { verifyCode.disabled = false; }
+  });
+  verificationCode.append(codeLabel, verifyCode);
+  verification.append(verificationEmailLabel, sendCode, verificationCode);
   const form = el('form', 'hb-form');
   function field(labelText, name, type, autocomplete) {
     const wrap = el('label', 'hb-field', labelText);
@@ -85,13 +118,15 @@
   }
   const [nameWrap, nameInput] = field('닉네임', 'name', 'text', 'nickname');
   nameInput.minLength = 2; nameInput.maxLength = 30;
+  const [fullNameWrap, fullNameInput] = field('이름', 'fullName', 'text', 'name');
+  fullNameInput.minLength = 2; fullNameInput.maxLength = 60;
   const [, emailInput] = field('이메일', 'email', 'email', 'email'); emailInput.maxLength = 254;
   const [, passwordInput] = field('비밀번호', 'password', 'password', 'current-password'); passwordInput.maxLength = 128;
   const passwordHint = el('p', 'hb-muted', '비밀번호는 12~128자로 입력해 주세요.');
   const submit = el('button', 'hb-button hb-primary', '로그인'); submit.type = 'submit';
   const authStatus = el('p', 'hb-status'); authStatus.setAttribute('role', 'status');
   form.append(passwordHint, submit, authStatus);
-  dialog.append(close, title, intro, tabs, social, divider, form);
+  dialog.append(close, title, intro, tabs, social, verification, divider, form);
   document.body.append(dialog);
   dialog.addEventListener('close', () => lastFocus?.focus());
   dialog.addEventListener('click', e => {
@@ -103,9 +138,21 @@
   function setMode(value) {
     mode = value;
     const signingUp = mode === 'register';
+    const proof = state.pendingRegistration;
     nameWrap.hidden = !signingUp; nameInput.required = signingUp; nameInput.disabled = !signingUp;
+    fullNameWrap.hidden = !signingUp; fullNameInput.required = signingUp; fullNameInput.disabled = !signingUp;
+    verification.hidden = !signingUp || Boolean(proof) || !state.emailVerificationAvailable;
+    form.hidden = signingUp && !proof;
+    emailInput.readOnly = signingUp;
+    if (signingUp) {
+      emailInput.value = proof?.email || '';
+      if (proof?.suggestedName && !nameInput.value) nameInput.value = proof.suggestedName;
+      verificationEmail.value = state.user?.email || verificationEmail.value;
+    }
     title.textContent = signingUp ? 'habang 회원이 되어보세요' : '다시 만나서 반가워요';
-    intro.textContent = signingUp ? '이메일로 가입하고 페이지마다 댓글을 남겨보세요.' : '로그인하고 이야기를 나눠보세요.';
+    intro.textContent = signingUp ? (proof ? '인증된 이메일을 아이디로 사용합니다. 비밀번호, 닉네임, 이름을 등록해 주세요.' : 'Google 또는 GitHub로 이메일을 먼저 확인해 주세요.') : '로그인하고 이야기를 나눠보세요.';
+    divider.textContent = signingUp ? (proof ? '회원 정보 등록' : '이메일 인증') : '또는 이메일로 로그인';
+    divider.hidden = signingUp && !proof && !state.emailVerificationAvailable;
     submit.textContent = signingUp ? '회원가입' : '로그인';
     passwordHint.hidden = !signingUp;
     passwordInput.minLength = signingUp ? 12 : 1;
@@ -117,8 +164,8 @@
   function showAuth(value) {
     setMode(value); lastFocus = document.activeElement;
     if (!ready) authStatus.textContent = '로그인 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.';
-    dialog.showModal();
-    (mode === 'register' ? nameInput : emailInput).focus();
+    if (!dialog.open) dialog.showModal();
+    (mode === 'register' ? (state.pendingRegistration ? nameInput : state.emailVerificationAvailable ? verificationEmail : social.querySelector('a')) : emailInput).focus();
   }
   form.addEventListener('submit', async e => {
     e.preventDefault(); if (submit.disabled) return;
@@ -126,12 +173,13 @@
     try {
       if (!ready) { state = await api('/api/session'); ready = true; }
       const data = await api(`/api/auth/${mode}`, {method: 'POST', body: JSON.stringify({
-        name: nameInput.value, email: emailInput.value, password: passwordInput.value
+        name: nameInput.value, fullName: fullNameInput.value, email: emailInput.value, password: passwordInput.value
       })});
-      state = {...state, ...data}; form.reset(); dialog.close(); renderAccount();
+      state = {...state, ...data, pendingRegistration: null}; form.reset(); dialog.close(); renderAccount();
       status.textContent = mode === 'register' ? '회원가입이 완료되었습니다.' : '로그인되었습니다.';
       await loadComments();
-      resumeDownload();
+      if (state.user && (!state.user.verified || !state.user.registrationComplete)) showAuth('register');
+      else resumeDownload();
     } catch (err) { authStatus.textContent = err.message; }
     finally { submit.disabled = false; }
   });
@@ -160,16 +208,22 @@
   if (footer) footer.before(section); else document.querySelector('main')?.after(section);
 
   function renderAccount() {
-    adminLink.hidden = !state.user?.isAdmin;
+    const complete = Boolean(state.user?.verified && state.user?.registrationComplete);
+    adminLink.hidden = !state.user?.isAdmin || !complete;
     if (ready) {
       window.habangSession = {...state};
       window.dispatchEvent(new CustomEvent('habang:session', {detail: window.habangSession}));
     }
     toolbar.querySelectorAll('[data-logout]').forEach(n => n.remove());
-    account.textContent = state.user ? `${state.user.name}님` : '';
+    toolbar.querySelectorAll('[data-onboarding]').forEach(n => n.remove());
+    account.textContent = state.user ? `${state.user.name}님${complete ? '' : ' · 가입 확인 필요'}` : '';
     loginButton.hidden = Boolean(state.user);
     composer.hidden = !state.user; guest.hidden = Boolean(state.user);
     if (state.user) {
+      if (!complete) {
+        const finish = button('인증·가입 완료', () => showAuth('register'), 'hb-link');
+        finish.dataset.onboarding = ''; toolbar.append(finish);
+      }
       const logout = button('로그아웃', async () => {
         logout.disabled = true;
         try {
@@ -180,7 +234,8 @@
     }
     for (const [key, a] of Object.entries(providerLinks)) {
       a.setAttribute('aria-disabled', String(!state.providers[key]));
-      a.title = state.providers[key] ? '' : '준비 중 · 이메일 로그인은 이용할 수 있어요';
+      a.title = state.providers[key] ? '' : '이 로그인 방식은 현재 준비 중입니다.';
+      a.lastChild.textContent = state.user ? `${key === 'google' ? 'Google' : 'GitHub'} 인증·계정 연결` : `${key === 'google' ? 'Google' : 'GitHub'}로 계속하기`;
     }
   }
   function commentNode(comment) {
@@ -244,14 +299,16 @@
       state = await api('/api/session'); ready = true; renderAccount(); status.textContent = '';
       await loadComments();
       resumeDownload();
+      if (state.pendingRegistration || (state.user && (!state.user.verified || !state.user.registrationComplete))) showAuth('register');
     } catch (err) { status.textContent = '로그인·댓글 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'; }
     const url = new URL(location.href); const error = url.searchParams.get('auth_error');
     if (error) {
-      showAuth('login');
-      authStatus.textContent = error === 'unavailable' ? '아직 준비 중인 로그인 방식입니다. 이메일로 계속해 주세요.' : '소셜 로그인을 완료하지 못했습니다. 다시 시도해 주세요.';
+      showAuth(error === 'account_conflict' || error === 'reauth_required' ? 'login' : 'register');
+      authStatus.textContent = error === 'unavailable' ? '아직 준비 중인 로그인 방식입니다.' : error === 'account_conflict' ? '기존 이메일 계정에 비밀번호로 로그인한 뒤 Google 또는 GitHub 인증·계정 연결을 진행해 주세요.' : error === 'link_conflict' ? '이전 소셜 계정에 별도 데이터나 권한이 있어 자동 연결할 수 없습니다. 관리자에게 문의해 주세요.' : error === 'reauth_required' ? '계정 연결 전 비밀번호로 다시 로그인해 주세요.' : '소셜 인증을 완료하지 못했습니다. 다시 시도해 주세요.';
       url.searchParams.delete('auth_error'); history.replaceState(null, '', url.pathname + url.search + url.hash);
     }
   }
   window.addEventListener('habang:login', () => showAuth('login'));
+  window.addEventListener('habang:register', () => showAuth('register'));
   init();
 })();

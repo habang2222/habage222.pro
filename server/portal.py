@@ -165,7 +165,11 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
                 if not value.startswith('Bearer hb_live_') or len(value) > 128:
                     return fail('유효한 Bearer API 키가 필요합니다.', 401)
                 hashed = hashlib.sha256(value[7:].encode()).hexdigest()
-                row = db().execute('SELECT * FROM api_keys WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?', (hashed, now())).fetchone()
+                row = db().execute('''SELECT k.* FROM api_keys k JOIN users u ON u.id=k.user_id
+                  WHERE k.token_hash=? AND k.revoked_at IS NULL AND k.expires_at>?
+                    AND u.email_verified_at IS NOT NULL AND u.registration_completed_at IS NOT NULL
+                    AND k.created_at>=u.email_verified_at AND k.created_at>=u.registration_completed_at''',
+                    (hashed, now())).fetchone()
                 if not row:
                     return fail('만료되었거나 폐기된 API 키입니다.', 401)
                 if scope not in json.loads(row['scopes']):
@@ -225,7 +229,7 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
         program = next((key for key, value in PROGRAMS.items() if filename in value['files']), None)
         if program is None:
             abort(404)
-        if not g.user:
+        if not g.user or not g.user['email_verified_at'] or not g.user['registration_completed_at']:
             return redirect('/api.html?download=' + program)
         return download(program, filename)
 
@@ -292,7 +296,8 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
     def admin_overview():
         admin()
         query = request.args.get('q', '').strip()[:80]
-        users = db().execute('''SELECT u.id,u.display_name,u.email,u.created_at,COALESCE(p.approved,0) AS auto_approved,
+        users = db().execute('''SELECT u.id,u.display_name,u.full_name,u.email,u.created_at,u.email_verified_at,u.registration_completed_at,
+          COALESCE(p.approved,0) AS auto_approved,
           (SELECT group_concat(provider) FROM identities WHERE user_id=u.id) AS providers
           FROM users u LEFT JOIN rental_permissions p ON p.user_id=u.id
           WHERE u.id LIKE ? OR u.display_name LIKE ? OR u.email LIKE ? ORDER BY u.created_at DESC LIMIT 50''', tuple('%' + query + '%' for _ in range(3))).fetchall()
@@ -309,8 +314,11 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
             return fail('승인 여부가 필요합니다.')
         with db():
             db().execute('BEGIN IMMEDIATE')
-            if not db().execute('SELECT 1 FROM users WHERE id=?', (user_id,)).fetchone():
+            account = db().execute('SELECT email_verified_at,registration_completed_at FROM users WHERE id=?', (user_id,)).fetchone()
+            if not account:
                 abort(404)
+            if approved and (not account['email_verified_at'] or not account['registration_completed_at']):
+                return fail('이메일 인증과 회원가입을 완료한 회원만 승인할 수 있습니다.', 409)
             pending = db().execute("SELECT * FROM rentals WHERE user_id=? AND status='pending' ORDER BY created_at", (user_id,)).fetchall()
             if approved and pending and not runtime()['ready']:
                 return fail('자동 생성 서비스를 확인한 뒤 승인해 주세요.', 503)
@@ -334,6 +342,10 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
             if not row:
                 return fail('이미 처리되었거나 없는 대여 신청입니다.', 409)
             if decision == 'approve':
+                account = db().execute('SELECT email_verified_at,registration_completed_at FROM users WHERE id=?',
+                                       (row['user_id'],)).fetchone()
+                if not account or not account['email_verified_at'] or not account['registration_completed_at']:
+                    return fail('이메일 인증과 회원가입을 완료한 회원만 승인할 수 있습니다.', 409)
                 if not runtime()['ready']:
                     return fail('자동 생성 서비스를 확인한 뒤 승인해 주세요.', 503)
                 if not reserve(row):

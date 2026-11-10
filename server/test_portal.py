@@ -32,6 +32,7 @@ class PortalTests(unittest.TestCase):
     tearDown = fixtures.CommunityTests.tearDown
     start = fixtures.CommunityTests.start
     write = fixtures.CommunityTests.write
+    verify_address = fixtures.CommunityTests.verify_address
     signup = fixtures.CommunityTests.signup
     def add_member(self):
         return self.signup().json['user']['id']
@@ -86,6 +87,36 @@ class PortalTests(unittest.TestCase):
         self.rows('UPDATE api_keys SET expires_at=0')
         self.assertEqual(self.client.get('/api/v1/programs/lecture-alarm', headers=headers, base_url='https://test.example').status_code, 401)
         self.assertEqual(self.write('/api/keys', {'name': '관리자 키', 'program': 'unknown'}).status_code, 400)
+
+    def test_existing_key_and_download_stop_when_owner_verification_is_removed(self):
+        owner = self.add_member()
+        issued = self.write('/api/keys', {'name': '프로그램 키', 'program': 'lecture-alarm'}).json
+        headers = {'Authorization': 'Bearer ' + issued['secret']}
+        self.assertEqual(self.client.get('/api/v1/programs/lecture-alarm', headers=headers, base_url='https://test.example').status_code, 200)
+        self.rows('UPDATE users SET email_verified_at=NULL WHERE id=?', (owner,))
+        self.assertEqual(self.client.get('/api/v1/programs/lecture-alarm', headers=headers, base_url='https://test.example').status_code, 401)
+        self.assertEqual(self.client.get('/api/v1/programs/lecture-alarm/download', headers=headers, base_url='https://test.example').status_code, 401)
+        self.assertEqual(self.client.get('/api/keys', base_url='https://test.example').status_code, 403)
+        self.assertEqual(self.client.get('/downloads/cu-lms-lecture-alarm-v2.2.0.zip', base_url='https://test.example').status_code, 302)
+        self.assertEqual(self.write('/api/rentals', {'name': '테스트 서버', 'publicKey': example_key()}).status_code, 403)
+        self.verify_address()
+        restored = self.write('/api/auth/register', {'email': 'member@example.com', 'name': '테스트 회원',
+            'fullName': '테스트 이름', 'password': 'new correct horse battery staple'})
+        self.assertEqual(restored.status_code, 201)
+        self.csrf = restored.json['csrfToken']
+        self.assertEqual(self.client.get('/api/v1/programs/lecture-alarm', headers=headers, base_url='https://test.example').status_code, 401)
+        self.assertIsNotNone(self.rows('SELECT revoked_at FROM api_keys WHERE id=?', (issued['key']['id'],))[0][0])
+
+    def test_admin_cannot_approve_unverified_account(self):
+        admin_id = self.add_member()
+        member = self.app.test_client()
+        member_csrf = self.start(member)
+        target = self.signup(email='pending@example.com', client=member, csrf=member_csrf).json['user']['id']
+        self.make_admin(admin_id)
+        self.rows('UPDATE users SET registration_completed_at=NULL WHERE id=?', (target,))
+        response = self.write(f'/api/admin/users/{target}/rental-access', {'approved': True})
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(self.rows('SELECT approved FROM rental_permissions WHERE user_id=?', (target,)))
 
     def test_program_download_integrity_scope_and_key_ownership(self):
         owner = self.add_member()
