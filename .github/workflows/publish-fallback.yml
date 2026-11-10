@@ -10,6 +10,9 @@ on:
       - '*.css'
       - '*.js'
       - 'images/**'
+      - 'edge/build-fallback.mjs'
+      - 'edge/offline-*.js'
+      - 'edge/offline.css'
       - '.github/workflows/publish-fallback.yml'
   workflow_dispatch:
 
