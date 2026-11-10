@@ -125,8 +125,8 @@
   const passwordHint = el('p', 'hb-muted', '비밀번호는 12~128자로 입력해 주세요.');
   const submit = el('button', 'hb-button hb-primary', '로그인'); submit.type = 'submit';
   const authStatus = el('p', 'hb-status'); authStatus.setAttribute('role', 'status');
-  form.append(passwordHint, submit, authStatus);
-  dialog.append(close, title, intro, tabs, social, verification, divider, form);
+  form.append(passwordHint, submit);
+  dialog.append(close, title, intro, tabs, social, verification, divider, form, authStatus);
   document.body.append(dialog);
   dialog.addEventListener('close', () => lastFocus?.focus());
   dialog.addEventListener('click', e => {
@@ -305,6 +305,12 @@
       if (state.pendingRegistration || (state.user && (!state.user.verified || !state.user.registrationComplete))) showAuth('register');
     } catch (err) { status.textContent = '로그인·댓글 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'; }
     const url = new URL(location.href); const error = url.searchParams.get('auth_error');
+    const linked = url.searchParams.get('auth_linked');
+    if (linked === 'google' || linked === 'github') {
+      showAuth('register');
+      authStatus.textContent = `${linked === 'google' ? 'Google' : 'GitHub'} 계정 연결이 완료되었습니다.`;
+      url.searchParams.delete('auth_linked'); history.replaceState(null, '', url.pathname + url.search + url.hash);
+    }
     if (error) {
       showAuth(error === 'account_conflict' || error === 'reauth_required' ? 'login' : 'register');
       authStatus.textContent = error === 'unavailable' ? '아직 준비 중인 로그인 방식입니다.' : error === 'account_conflict' ? '기존 이메일 계정에 비밀번호로 로그인한 뒤 Google 또는 GitHub 인증·계정 연결을 진행해 주세요.' : error === 'link_conflict' ? '이전 소셜 계정에 별도 데이터나 권한이 있어 자동 연결할 수 없습니다. 관리자에게 문의해 주세요.' : error === 'reauth_required' ? '계정 연결 전 비밀번호로 다시 로그인해 주세요.' : '소셜 인증을 완료하지 못했습니다. 다시 시도해 주세요.';

@@ -697,7 +697,8 @@ def create_app(config=None):
                         db().execute('UPDATE identities SET provider_email=? WHERE provider=? AND subject=?',
                                      (email, provider, subject))
                     new_session(user_id)
-                    return redirect(next_page if next_page in pages or next_page == '/' else '/')
+                    destination = next_page if next_page in pages or next_page == '/' else '/'
+                    return redirect(destination + ('?auth_linked=' + provider if link_target else ''))
                 if account and account['email'] != email:
                     with db():
                         db().execute('UPDATE users SET email_verified_at=NULL,registration_completed_at=NULL WHERE id=?', (user_id,))

@@ -150,7 +150,7 @@ class CommunityTests(unittest.TestCase):
         for page in pages:
             res = self.client.get('/' + page.name, base_url='https://test.example')
             self.assertEqual(res.status_code, 200)
-            self.assertIn(b'/community.js?v=5', res.data)
+            self.assertIn(b'/community.js?v=6', res.data)
             self.assertIn(b'/community.css?v=', res.data)
             res.close()
         res = self.client.get('/community.js', base_url='https://test.example')
@@ -331,7 +331,7 @@ class CommunityTests(unittest.TestCase):
         link = self.write('/api/auth/link/google', {'next': '/'}, client=client, csrf=login.json['csrfToken'])
         self.assertEqual(link.status_code, 200)
         linked, state = callback('provider-user-1')
-        self.assertEqual(linked.location, '/')
+        self.assertEqual(linked.location, '/?auth_linked=google')
         self.assertIsNone(state['pendingRegistration'])
         self.assertEqual(state['user']['id'], local_id)
         _, again = callback('provider-user-1')
@@ -392,7 +392,7 @@ class CommunityTests(unittest.TestCase):
         emails = Mock(); emails.json.return_value = [{'email': 'member@example.com', 'primary': True, 'verified': True}]
         with patch.object(github, 'authorize_access_token', return_value={'access_token': 'test-token'}), \
              patch.object(github, 'get', side_effect=[user, emails]):
-            self.assertEqual(client.get('/auth/github/callback', base_url='https://test.example').location, '/')
+            self.assertEqual(client.get('/auth/github/callback', base_url='https://test.example').location, '/?auth_linked=github')
         with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
             self.assertEqual(connection.execute('SELECT user_id FROM identities WHERE provider=?', ('github',)).fetchone()[0], local_id)
         new_admin = create_app({**self.config, 'ADMIN_USER_IDS': local_id})
