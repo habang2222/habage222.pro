@@ -18,10 +18,19 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publish-fallback-pages
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,3 +59,12 @@ jobs:
           fi
           git -C "$target" -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "Refresh static fallback from ${GITHUB_SHA:0:12}"
           git -C "$target" push origin HEAD:fallback-pages
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload static fallback
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/habang-static
+      - name: Deploy static fallback
+        id: deployment
+        uses: actions/deploy-pages@v4

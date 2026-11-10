@@ -14,8 +14,10 @@ GitHub Pages는 `fallback-pages` 브랜치 루트를 게시하고 사용자 지�
 포함하고 `downloads/`, 서버 코드, 설정 파일, DB는 포함하지 않는다.
 
 `publish-fallback.yml`은 메인 또는 현재 기능 브랜치의 화면 파일이 바뀌면
-정적 브랜치를 갱신한다. 파일을 GitHub 저장소에 푸시한 직후 GitHub Actions의
-성공과 Pages 게시 상태를 확인한다.
+정적 브랜치를 갱신하고, 생성한 정적 아티팩트를 GitHub Pages에 직접 배포한다.
+GitHub 공식 문서에 따르면 Actions의 `GITHUB_TOKEN`으로 브랜치에 push한
+커밋만으로는 Pages 빌드가 시작되지 않기 때문이다. 파일을 GitHub 저장소에
+푸시한 직후 GitHub Actions의 성공과 Pages 게시 상태를 확인한다.
 
 Worker는 인증·API·다운로드 경로를 GitHub Pages로 우회시키지 않는다. 서버가
 꺼졌을 때 이 경로는 503이며, HTML에는 서비스 중단 안내가 표시된다. 브라우저
