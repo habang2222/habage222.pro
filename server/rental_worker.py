@@ -27,6 +27,17 @@ class Runtime:
             raise RuntimeError('컨테이너 작업에 실패했습니다. 관리자에게 문의해 주세요.')
         return result.stdout.strip()
 
+    def logs_since(self, name, started_at):
+        result = subprocess.run(
+            ['/usr/bin/podman', 'logs', '--since', started_at, name],
+            capture_output=True, text=True, timeout=8, check=False)
+        if result.returncode:
+            LOG.error('Podman logs failed: %.1200s', result.stderr)
+            raise RuntimeError('컨테이너 로그를 확인하지 못했습니다.')
+        # Podman preserves the container's stdout and stderr separately.
+        # sshd -e announces readiness on stderr.
+        return result.stdout + result.stderr
+
     def ready(self):
         info = json.loads(self.command('info', '--format', 'json'))
         if not info.get('host', {}).get('security', {}).get('rootless'):
@@ -105,7 +116,7 @@ class Runtime:
             if state.get('Running') and state.get('StartedAt'):
                 # Avoid an outbound exception to the host SSH port. The container
                 # process must announce its fresh sshd listener after StartedAt.
-                logs = self.command('logs', '--since', state['StartedAt'], name, timeout=8)
+                logs = self.logs_since(name, state['StartedAt'])
                 if 'Server listening on 0.0.0.0 port 2222.' in logs:
                     public_key = self.state / (row['id'] + '.hostkey.pub')
                     result = subprocess.run(['/usr/bin/ssh-keygen', '-E', 'sha256', '-lf', str(public_key)],

@@ -26,7 +26,10 @@ with tempfile.TemporaryDirectory(prefix='habang-rental-qa-') as scratch:
     rental = secrets.token_hex(16)
     stamp = int(time.time())
     with sqlite3.connect(database) as connection:
-        connection.execute('INSERT INTO users VALUES(?,NULL,NULL,?,?)', (identity, 'Runtime QA', stamp))
+        connection.execute(
+            'INSERT INTO users(id,email,password_hash,display_name,created_at,full_name,email_verified_at,registration_completed_at) '
+            'VALUES(?,NULL,NULL,?,?,?,?,?)',
+            (identity, 'Runtime QA', stamp, 'Runtime QA', stamp, stamp))
         connection.execute("INSERT INTO rentals(id,user_id,name,plan,public_key,status,created_at,updated_at) VALUES(?,?,?,'workspace',?,'queued',?,?)", (rental, identity, 'Disposable runtime test', key.with_suffix('.pub').read_text().strip(), stamp, stamp))
         connection.execute("INSERT INTO rental_jobs(id,rental_id,action,status,created_at) VALUES(?,?,'create','queued',?)", (secrets.token_hex(16), rental, stamp))
     runtime = Runtime()
@@ -63,6 +66,15 @@ with tempfile.TemporaryDirectory(prefix='habang-rental-qa-') as scratch:
         desktop = json.loads(desktop_result.stdout)
         assert desktop['web'] == 200 and desktop['vnc'].startswith('RFB ')
         assert desktop['memory_used'] < 384 * 1024 * 1024
+        allowed = subprocess.run(
+            ssh[:-1] + ['-W', '127.0.0.1:6080', ssh[-1]],
+            input='GET /vnc.html HTTP/1.0\r\nHost: localhost\r\n\r\n',
+            capture_output=True, text=True, timeout=15)
+        assert allowed.returncode == 0 and '200 OK' in allowed.stdout
+        forbidden = subprocess.run(
+            ssh[:-1] + ['-W', '127.0.0.1:22', ssh[-1]],
+            capture_output=True, text=True, timeout=15)
+        assert forbidden.returncode != 0 and 'administratively prohibited' in forbidden.stderr
         fingerprint = row['ssh_fingerprint']
         runtime.operate('stop', row)
         new_fingerprint = runtime.operate('start', row)
@@ -72,6 +84,7 @@ with tempfile.TemporaryDirectory(prefix='habang-rental-qa-') as scratch:
         runtime.operate('terminate', row)
         assert runtime.inspect(row) is None
         print(json.dumps({'rootless': True, 'ssh_login': True, 'checks': checks, 'desktop': desktop,
+                          'desktop_ssh_forward': True, 'other_ssh_forward_denied': True,
                           'restart_keeps_host_key': True, 'temporary_files_reset': True,
                           'termination_verified': True}))
     finally:
