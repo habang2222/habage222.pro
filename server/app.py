@@ -55,6 +55,14 @@ CREATE TABLE IF NOT EXISTS email_challenges (
  email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires_at INTEGER NOT NULL,
  attempts INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS privacy_requests (
+ id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+ kind TEXT NOT NULL CHECK(kind IN ('export','delete')),
+ message TEXT NOT NULL DEFAULT '',
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','acknowledged','completed','rejected')),
+ created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS privacy_requests_owner ON privacy_requests(user_id, created_at DESC);
 """
 
 
@@ -337,6 +345,69 @@ def create_app(config=None):
                        emailVerificationAvailable=smtp_ready(), providers={
             name: bool(oauth.create_client(name)) for name in ('google', 'github')
         })
+
+    @app.get('/api/privacy-requests')
+    def list_privacy_requests():
+        require_user()
+        rows = db().execute('SELECT id,kind,status,created_at,updated_at FROM privacy_requests '
+                            'WHERE user_id=? ORDER BY created_at DESC LIMIT 25', (g.user['id'],)).fetchall()
+        return jsonify(requests=[dict(row) for row in rows])
+
+    @app.post('/api/privacy-requests')
+    def create_privacy_request():
+        require_user()
+        data = payload()
+        kind = data.get('kind')
+        message = text(data.get('message')).strip()
+        if kind not in ('export', 'delete') or len(message) > 1000 or any(ord(c) < 32 and c not in '\n\t' for c in message):
+            return fail('요청 종류 또는 내용을 확인해 주세요.')
+        if not rate_limit('privacy-request', 5, 86400, g.user['id']):
+            return fail('요청 횟수를 초과했습니다. 지원 이메일로 문의해 주세요.', 429)
+        now = int(time.time())
+        with db():
+            db().execute('BEGIN IMMEDIATE')
+            duplicate = db().execute("SELECT 1 FROM privacy_requests WHERE user_id=? AND kind=? "
+                                     "AND status IN ('pending','acknowledged')", (g.user['id'], kind)).fetchone()
+            if duplicate:
+                return fail('같은 종류의 요청을 이미 접수했습니다.', 409)
+            row = (secrets.token_hex(16), g.user['id'], kind, message, 'pending', now, now)
+            db().execute('INSERT INTO privacy_requests(id,user_id,kind,message,status,created_at,updated_at) '
+                         'VALUES(?,?,?,?,?,?,?)', row)
+        return jsonify(request={'id': row[0], 'kind': kind, 'status': 'pending',
+                                'created_at': now, 'updated_at': now}), 201
+
+    @app.get('/api/admin/privacy-requests')
+    def admin_privacy_requests():
+        require_user()
+        if g.user['id'] not in admins:
+            abort(403)
+        rows = db().execute('''SELECT p.id,p.user_id,u.email,p.kind,p.message,p.status,p.created_at,p.updated_at
+          FROM privacy_requests p JOIN users u ON u.id=p.user_id
+          ORDER BY CASE WHEN p.status IN ('pending','acknowledged') THEN 0 ELSE 1 END,
+                   p.created_at DESC LIMIT 100''').fetchall()
+        return jsonify(requests=[dict(row) for row in rows])
+
+    @app.post('/api/admin/privacy-requests/<request_id>/review')
+    def review_privacy_request(request_id):
+        require_user()
+        if g.user['id'] not in admins:
+            abort(403)
+        status = payload().get('status')
+        if status not in ('acknowledged', 'completed', 'rejected'):
+            return fail('처리 상태를 확인해 주세요.')
+        with db():
+            row = db().execute('SELECT status FROM privacy_requests WHERE id=?', (request_id,)).fetchone()
+            if not row:
+                abort(404)
+            if row['status'] in ('completed', 'rejected'):
+                return fail('이미 완료된 요청입니다.', 409)
+            if status == 'acknowledged' and row['status'] != 'pending':
+                return fail('이미 접수 확인한 요청입니다.', 409)
+            db().execute('UPDATE privacy_requests SET status=?,updated_at=? WHERE id=?',
+                         (status, int(time.time()), request_id))
+            db().execute('INSERT INTO admin_events(actor_id,action,target,created_at) VALUES(?,?,?,?)',
+                         (g.user['id'], 'privacy:' + status, request_id, int(time.time())))
+        return jsonify(ok=True)
 
     @app.post('/api/auth/link/<provider>')
     def begin_explicit_link(provider):

@@ -154,6 +154,51 @@
       }));
       users.append(record);
     }
+    await loadPrivacyRequests();
+  }
+  let privacyList;
+  if (adminPage) {
+    const panel = node('section', 'panel');
+    const heading = node('div', 'panel-heading');
+    heading.append(node('h2', '', '개인정보 요청'));
+    heading.append(action('새로고침', () => loadPrivacyRequests()));
+    panel.append(heading, node('p', 'muted', '자료 열람·삭제 요청은 관리자에게만 보입니다. “완료”는 실제 자료 전달 또는 삭제를 마친 뒤에만 표시하세요. 상태 변경만으로 자료가 삭제되지는 않습니다.'));
+    privacyList = node('div', 'record-list'); privacyList.id = 'admin-privacy-requests';
+    panel.append(privacyList); byId('admin-content').append(panel);
+  }
+  async function loadPrivacyRequests() {
+    if (!adminPage || !session.user?.isAdmin) return;
+    const owner = session.user.id;
+    const data = await api('/api/admin/privacy-requests');
+    if (session.user?.id !== owner || !session.user?.isAdmin) return;
+    privacyList.replaceChildren();
+    if (!data.requests.length) privacyList.append(node('p', 'empty', '접수된 정보 요청이 없습니다.'));
+    const kinds = {export: '자료 열람·내보내기', delete: '계정·관련 자료 삭제'};
+    const states = {pending: '접수됨', acknowledged: '검토 중', completed: '처리 완료', rejected: '처리 불가'};
+    for (const row of data.requests) {
+      const record = node('article', 'record');
+      record.append(node('strong', '', kinds[row.kind] || row.kind), node('span', 'pill', states[row.status] || row.status));
+      record.append(node('p', 'meta', `${row.email} · 접수 ${date(row.created_at)} · 갱신 ${date(row.updated_at)}`));
+      if (row.message) { const note = node('p', '', row.message); note.style.whiteSpace = 'pre-wrap'; record.append(note); }
+      if (row.status === 'pending' || row.status === 'acknowledged') {
+        const buttons = node('div', 'button-row');
+        async function review(status) {
+          await api(`/api/admin/privacy-requests/${row.id}/review`, {method: 'POST', body: JSON.stringify({status})});
+          await loadPrivacyRequests(); message('정보 요청 상태를 갱신했습니다.');
+        }
+        if (row.status === 'pending') buttons.append(action('접수 확인', () => review('acknowledged')));
+        buttons.append(action('실제 처리 후 완료', async () => {
+          if (!window.confirm('요청한 자료 전달 또는 계정 자료 삭제를 실제로 마쳤나요? 상태만 완료로 바꿔도 자료는 자동 삭제되지 않습니다.')) return;
+          await review('completed');
+        }));
+        buttons.append(action('처리 불가', async () => {
+          if (!window.confirm('이 요청을 처리 불가로 표시할까요? 요청자에게는 상태만 표시됩니다. 사유는 별도 연락으로 알려주세요.')) return;
+          await review('rejected');
+        }, true));
+        record.append(buttons);
+      }
+      privacyList.append(record);
+    }
   }
   async function refresh(next = window.habangSession) {
     const current = ++epoch;

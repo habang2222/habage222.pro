@@ -21,6 +21,10 @@ test('published backup contains presentation files and offline scripts only', ()
     assert.match(html, /src="community\.js\?/);
     assert.doesNotMatch(fs.readFileSync(path.join(output, 'community.js'), 'utf8'), /\/api\/session/);
     assert.doesNotMatch(fs.readFileSync(path.join(output, 'portal.js'), 'utf8'), /fetch\(/);
+    assert.doesNotMatch(fs.readFileSync(path.join(output, 'support.js'), 'utf8'), /fetch\(/);
+    for (const name of ['privacy.html', 'terms.html', 'support.html', 'legal.css']) {
+      assert.equal(fs.existsSync(path.join(output, name)), true, name);
+    }
   } finally {
     assert.equal(path.dirname(path.resolve(tempRoot)), path.resolve(os.tmpdir()));
     fs.rmSync(tempRoot, {recursive: true, force: true});
@@ -28,7 +32,7 @@ test('published backup contains presentation files and offline scripts only', ()
 });
 
 test('only presentation assets can use the static fallback', () => {
-  for (const path of ['/', '/index.html', '/api.html', '/community.js', '/images/home/hero.png']) {
+  for (const path of ['/', '/index.html', '/api.html', '/privacy.html', '/terms.html', '/support.html', '/support.js', '/images/home/hero.png']) {
     assert.equal(isStaticPath(path), true, path);
   }
   for (const path of ['/api/session', '/auth/google', '/downloads/PhotoSorter.apk', '/server/app.py', '/.env']) {

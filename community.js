@@ -44,17 +44,28 @@
   const homeLink = el('a', 'hb-header-brand', 'habang222'); homeLink.href = '/';
   const apiLink = el('a', 'hb-link', 'API 키'); apiLink.href = '/api.html';
   const rentalsLink = el('a', 'hb-link', '서버 대여'); rentalsLink.href = '/servers.html';
+  const supportLink = el('a', 'hb-link', '고객지원'); supportLink.href = '/support.html';
   const adminLink = el('a', 'hb-link', '관리자'); adminLink.href = '/admin.html'; adminLink.hidden = true;
-  for (const link of [apiLink, rentalsLink, adminLink]) {
+  for (const link of [apiLink, rentalsLink, supportLink, adminLink]) {
     if (link.getAttribute('href') === page) link.setAttribute('aria-current', 'page');
   }
-  toolbar.append(homeLink, apiLink, rentalsLink, adminLink);
+  toolbar.append(homeLink, apiLink, rentalsLink, supportLink, adminLink);
   toolbar.append(account);
   const loginButton = button('로그인 · 회원가입', () => showAuth('login'));
   toolbar.append(loginButton);
   const siteHeader = el('header', 'hb-site-header');
   siteHeader.append(toolbar);
   document.body.prepend(siteHeader);
+
+  const pageFooter = document.querySelector('body > footer, .page-shell > footer');
+  if (pageFooter && !pageFooter.querySelector('a[href="/privacy.html"]')) {
+    const legalLinks = el('nav', 'hb-legal-links');
+    legalLinks.setAttribute('aria-label', '법적 안내');
+    for (const [path, label] of [['/privacy.html', '개인정보처리방침'], ['/terms.html', '이용약관'], ['/support.html', '고객지원']]) {
+      const link = el('a', '', label); link.href = path; legalLinks.append(link);
+    }
+    pageFooter.append(legalLinks);
+  }
 
   const dialog = el('dialog', 'hb-dialog');
   dialog.setAttribute('aria-labelledby', 'hb-auth-title');
@@ -126,7 +137,12 @@
   const submit = el('button', 'hb-button hb-primary', '로그인'); submit.type = 'submit';
   const authStatus = el('p', 'hb-status'); authStatus.setAttribute('role', 'status');
   form.append(passwordHint, submit);
-  dialog.append(close, title, intro, tabs, social, verification, divider, form, authStatus);
+  const legalNote = el('p', 'hb-legal-note');
+  legalNote.append('가입·로그인에 쓰는 정보와 이용 조건은 ');
+  const privacyLink = el('a', '', '개인정보처리방침'); privacyLink.href = '/privacy.html';
+  const termsLink = el('a', '', '이용약관'); termsLink.href = '/terms.html';
+  legalNote.append(privacyLink, '과 ', termsLink, '에서 확인할 수 있습니다.');
+  dialog.append(close, title, intro, tabs, social, verification, divider, form, legalNote, authStatus);
   document.body.append(dialog);
   dialog.addEventListener('close', () => lastFocus?.focus());
   dialog.addEventListener('click', e => {

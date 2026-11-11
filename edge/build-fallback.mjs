@@ -12,7 +12,7 @@ const notice = '<div class="hb-fallback-notice" role="status" aria-live="polite"
 const style = '<link rel="stylesheet" href="offline.css">';
 for (const entry of fs.readdirSync(source, {withFileTypes: true})) {
   if (!entry.isFile() || !/\.(?:html|css|js)$/.test(entry.name)) continue;
-  if (entry.name === 'community.js' || entry.name === 'portal.js') continue;
+  if (entry.name === 'community.js' || entry.name === 'portal.js' || entry.name === 'support.js') continue;
   const input = path.join(source, entry.name);
   const output = path.join(destination, entry.name);
   if (!entry.name.endsWith('.html')) {
@@ -36,6 +36,7 @@ fs.cpSync(path.join(source, 'images'), path.join(destination, 'images'), {recurs
 for (const [name, origin] of [
   ['community.js', 'offline-community.js'],
   ['portal.js', 'offline-portal.js'],
+  ['support.js', 'offline-support.js'],
   ['offline.css', 'offline.css'],
 ]) fs.copyFileSync(path.join(source, 'edge', origin), path.join(destination, name));
 fs.writeFileSync(path.join(destination, '.nojekyll'), '');

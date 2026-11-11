@@ -30,6 +30,7 @@
 .hb-provider:hover{background:#f0f7f4}.hb-provider[aria-disabled=true]{color:#7b8d87;background:#f6f8f7}.hb-provider[aria-disabled=true]::after{content:"준비 중";font-size:11px;font-weight:400}
 .hb-provider-mark{font-size:20px;font-weight:800}.hb-dialog .hb-divider{text-align:center;margin:20px 0;color:#6a8077;font-size:12px}
 .hb-form{display:grid;gap:14px}.hb-field{display:grid;gap:6px;font-size:13px;font-weight:700}.hb-form .hb-muted{margin:0;font-weight:400}.hb-form .hb-status{margin:0}.hb-form>.hb-primary{width:100%}
+.hb-legal-note{font-size:12px;color:#56726e;margin:16px 0 0!important;line-height:1.6}.hb-legal-note a,.hb-legal-links a{text-underline-offset:3px}.hb-legal-links{display:flex;flex-wrap:wrap;gap:8px 16px;font:13px/1.6 "Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}.hb-legal-links a{color:inherit}
 .hb-toolbar :is(a,button):focus-visible,.hb-community :is(button,textarea):focus-visible,.hb-dialog :is(a,button,input):focus-visible{outline:3px solid #247e78;outline-offset:3px}
 @media(max-width:650px){.hb-toolbar{padding:12px 20px}.hb-toolbar .hb-button{font-size:13px}.hb-community{margin:24px 16px 40px;padding:22px 18px}.hb-guest{padding:18px}.hb-dialog{padding:26px 22px}.hb-dialog h2{font-size:22px}}
 @media(max-width:650px){.hb-toolbar{gap:8px 12px;font-size:13px}.hb-header-brand{flex-basis:100%;font-size:19px}.hb-toolbar .hb-link{padding:5px 0}}

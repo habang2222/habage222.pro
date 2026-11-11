@@ -44,6 +44,7 @@ body .hb-site-header .hb-toolbar { background: transparent; border-bottom: 0; }
   margin: 0 auto;
   padding: 58px clamp(20px, 5vw, 60px) 100px;
 }
+.home-intro { max-width: 720px; margin: 0 0 28px; color: #23575a; font-size: clamp(15px, 2vw, 18px); line-height: 1.65; font-weight: 650; word-break: keep-all; }
 .search-area { max-width: 680px; }
 .search-area label { display: block; margin-bottom: 9px; font-size: 15px; font-weight: 800; }
 .search-field { display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 17px; border: 2px solid #aecac5; border-radius: 16px; background: #fff; }
@@ -83,6 +84,7 @@ body .hb-site-header .hb-toolbar { background: transparent; border-bottom: 0; }
 .empty-state, .noscript-note { margin: 22px 0 0; padding: 24px; border: 1px dashed #277c7b; border-radius: 18px; color: #234f50; }
 
 .home-footer { display: flex; justify-content: space-between; gap: 20px; max-width: 1180px; margin: 0 auto; padding: 25px clamp(20px, 5vw, 60px) 36px; color: #22585b; font-size: 13px; font-weight: 800; }
+.home-footer { flex-wrap: wrap; }
 .home-footer a { text-underline-offset: 3px; }
 
 :is(a, button, input):focus-visible { outline: 3px solid #00696d; outline-offset: 4px; }
