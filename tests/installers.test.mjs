@@ -15,6 +15,17 @@ for (const [name, expected] of Object.entries(manifest.sha256)) {
   if (name.endsWith('.cmd')) assert(!/(?<!\r)\n/.test(content.toString()), `CRLF required: ${name}`);
   if (name.endsWith('.sh')) assert(!content.includes(13), 'Shell script must use LF');
 }
+for (const [helper, payload] of [
+  ['LectureAlarm-Setup.cmd', 'cu-lms-lecture-alarm-v2.2.0.zip'],
+  ['RandomBackspace-Setup.cmd', 'random-password-backspace-f64bdb1.zip'],
+  ['MGlogWH-Setup.cmd', 'install-mglogwh.sh']
+]) {
+  const text = fs.readFileSync(path.join(root, 'downloads', helper), 'utf8');
+  assert(!text.includes('Invoke-WebRequest'), `${helper}: a second anonymous request would fail membership checks`);
+  const match = text.match(/\$(?:archive|script)Base64 = @'\r\n([A-Za-z0-9+/=\r\n]+)\r\n'@/);
+  assert(match, `${helper}: embedded payload missing`);
+  assert.deepEqual(Buffer.from(match[1].replace(/\s/g, ''), 'base64'), fs.readFileSync(path.join(root, 'downloads', payload)), `${helper}: embedded ${payload} differs from its pinned source`);
+}
 let internalLinks = 0;
 for (const name of ['index.html', 'mglogwh.html', 'lecture-alarm.html', 'random-backspace.html']) {
   const html = fs.readFileSync(path.join(root, name), 'utf8');
@@ -62,6 +73,7 @@ for (const [index, [file, scenario, expected]] of scenarios.entries()) {
   assert.equal(result.status, expected, `${file} ${scenario}: ${result.stdout}\n${result.stderr}`);
   const callsPath = path.join(testRoot, 'calls.txt');
   const calls = fs.existsSync(callsPath) ? fs.readFileSync(callsPath, 'utf8') : '';
+  assert(!calls.includes('download '), `${file} ${scenario}: helper must use its embedded payload`);
   if (expected !== 0) assert(!calls.includes('open '), `${file} ${scenario} must not open a success page`);
   if (expected === 0 && !file.startsWith('MG')) {
     assert(calls.includes('chrome://extensions/'));

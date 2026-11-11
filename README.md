@@ -1,20 +1,20 @@
 # habang222 블로그와 사진 빠른 분류 앱
 
-[habang222.pro](https://habang222.pro/)는 프로젝트를 검색하고 태그로 찾아볼 수 있는 메인 페이지입니다. **사진 빠른 분류** 버튼을 누르면 [앱 소개·설치 페이지](photo-sorter.html)로 이동합니다. 앱 페이지의 설치 버튼은 이 저장소의 최신 GitHub Release에 첨부된 `PhotoSorter.apk`를 내려받습니다.
+[habang222.pro](https://habang222.pro/)는 프로젝트를 검색하고 태그로 찾아볼 수 있는 메인 페이지입니다. **사진 빠른 분류** 버튼을 누르면 [앱 소개·설치 페이지](photo-sorter.html)로 이동합니다. 설치 버튼은 사이트 서버의 `/downloads/PhotoSorter.apk`를 호출하며, 확인된 이메일로 회원가입을 마친 사용자에게만 파일을 제공합니다. APK 원본은 GitHub Release가 아니라 서버의 비공개 `/srv/files/artifacts`에 둡니다.
 
-메인에 링크를 추가하거나 바꾸려면 저장소의 [links.js](links.js) 목록을 수정하고 `main` 브랜치에 반영합니다. 각 항목에 `title`, `url`, `tags`를 적으면 검색과 태그 필터에 자동으로 포함됩니다. `url`은 `https://...` 또는 같은 사이트의 `photo-sorter.html` 같은 경로를 사용할 수 있습니다. 사이트 방문자용 링크 입력 기능은 없습니다. 버튼 그림은 [images/home](images/home) 안의 투명 배경 이미지 일곱 장을 페이지를 열 때마다 무작위로 배정합니다. 첫 번째 제공 사진은 메인 상단 배경으로 사용합니다.
+메인에 링크를 추가하거나 바꾸려면 저장소의 [links.js](links.js) 목록을 수정하고 운영 서버에 배포합니다. GitHub 브랜치를 수정하는 것만으로 현재 운영 서버의 화면이 자동 갱신되지는 않습니다. 각 항목에 `title`, `url`, `tags`를 적으면 검색과 태그 필터에 자동으로 포함됩니다. `url`은 `https://...` 또는 같은 사이트의 `photo-sorter.html` 같은 경로를 사용할 수 있습니다. 사이트 방문자용 링크 입력 기능은 없습니다. 버튼 그림은 [images/home](images/home) 안의 투명 배경 이미지 일곱 장을 페이지를 열 때마다 무작위로 배정합니다. 첫 번째 제공 사진은 메인 상단 배경으로 사용합니다.
 
 ## 도구 설명과 설치
 
-메인의 프로젝트 카드에서 설명을 읽고 설치 도우미를 바로 받을 수 있습니다. `description`, `download`, `downloadLabel` 필드는 선택 사항이며, 설명도 검색 대상에 포함됩니다. 다운로드 경로는 같은 사이트의 파일만 허용합니다.
+메인의 프로젝트 카드에서 설명을 읽고 설치 도우미를 받을 수 있습니다. 다운로드는 이메일 확인과 회원가입을 마친 사용자에게만 서버가 제공합니다. `description`, `download`, `downloadLabel` 필드는 선택 사항이며, 설명도 검색 대상에 포함됩니다. 다운로드 경로는 같은 사이트의 파일만 허용합니다.
 
-- [MGlogWH + Control Room](mglogwh.html): Linux 수집기와 관제 화면을 함께 준비합니다. Windows용 `MGlogWH-Setup.cmd`는 기존 WSL2 `Ubuntu-24.04`에서 [통합 설치 스크립트](downloads/install-mglogwh.sh)를 실행합니다. 일반 Ubuntu 24.04에서도 같은 스크립트를 사용할 수 있습니다. 고정 커밋을 받아 일반 사용자로 빌드하고 sudo로 설치합니다. 기존 수집기는 교체하지 않으며, 설정·기존 run을 삭제하지 않습니다. systemd·BTF·수집기 capability를 검사하고, 수집기의 `RUNNING` 상태와 관제 HTTP 응답을 확인합니다. 성공한 설치는 수집을 시작하고 부팅 시 자동 실행을 활성화합니다. 중지·비활성화 명령은 설명 페이지에 있습니다. 커널 호환성이나 실제 BPF 로드를 사전 검사만으로 보장하지 않습니다.
+- [MGlogWH + Control Room](mglogwh.html): Linux 수집기와 관제 화면을 함께 준비합니다. Windows용 `MGlogWH-Setup.cmd`는 기존 WSL2 `Ubuntu-24.04`에서 [통합 설치 스크립트](https://habang222.pro/downloads/install-mglogwh.sh)를 실행합니다. 일반 Ubuntu 24.04에서도 같은 스크립트를 사용할 수 있습니다. 고정 커밋을 받아 일반 사용자로 빌드하고 sudo로 설치합니다. 기존 수집기는 교체하지 않으며, 설정·기존 run을 삭제하지 않습니다. systemd·BTF·수집기 capability를 검사하고, 수집기의 `RUNNING` 상태와 관제 HTTP 응답을 확인합니다. 성공한 설치는 수집을 시작하고 부팅 시 자동 실행을 활성화합니다. 중지·비활성화 명령은 설명 페이지에 있습니다. 커널 호환성이나 실제 BPF 로드를 사전 검사만으로 보장하지 않습니다.
 - [싸강 완료 알림](lecture-alarm.html): v2.2.0 공식 릴리스 ZIP과 Windows 설치 도우미를 제공합니다. 도우미는 SHA-256 확인 후 고정 사용자 폴더에 압축을 풀고, 기존 프로젝트의 네이티브 알림 등록 스크립트를 실행합니다.
 - [랜덤 백스페이스](random-backspace.html): 고정 커밋 `f64bdb1`의 확장 ZIP과 Windows 설치 도우미를 제공합니다. macOS·Linux에서는 ZIP을 직접 받아 압축을 풀면 됩니다.
 
 확장 프로그램 도우미는 Chrome을 먼저 확인하고, 내려받은 ZIP의 SHA-256을 검사하며, 설치 경로를 복사하고 Chrome 확장 관리 화면을 엽니다. 반복 실행 시 기존 폴더를 덮어쓰지 않고 파일 해시가 같은 경우에만 재사용합니다. **개발자 모드 활성화와 압축해제된 확장 폴더 등록은 사용자가 직접 합니다.** Chrome 웹 스토어 등록 없이 웹페이지에서 이 확인을 생략할 수는 없습니다. 도우미가 등록한 폴더는 삭제하거나 이동하지 않아야 합니다.
 
-다운로드 파일과 원본 버전·SHA-256은 [downloads/manifest.json](downloads/manifest.json)에 기록합니다. 도우미와 패키지를 갱신할 때는 이 목록과 도우미 안의 해시도 함께 갱신해야 합니다. `.cmd` 파일은 원래 CRLF 바이트를 보존하고, Linux 스크립트는 LF를 사용합니다. 설명 페이지는 `install.css`, 명령어 복사는 `install.js`를 공유합니다.
+다운로드 파일과 원본 버전·SHA-256은 서버의 비공개 `/srv/files/site/downloads/manifest.json`에 기록합니다. 이 디렉터리는 공개 Git 기록과 정적 GitHub Pages에 넣지 않습니다. 도우미와 패키지를 갱신할 때는 이 목록과 도우미 안의 해시도 함께 갱신해야 합니다. `.cmd` 파일은 원래 CRLF 바이트를 보존하고, Linux 스크립트는 LF를 사용합니다. 설명 페이지는 `install.css`, 명령어 복사는 `install.js`를 공유합니다.
 
 고정 ZIP과 Linux 스크립트를 수정한 뒤 `node scripts/build-installers.mjs`로 도우미와 체크섬을 재생성할 수 있습니다. Windows에서 `node tests/installers.test.mjs`는 15가지 격리된 설치 도우미 성공·실패 경로와 파일 체크섬·내부 링크를 확인합니다. Ubuntu 24.04 일반 사용자로 `bash tests/linux-installer.test.sh`를 실행하면 7가지 Linux 설치 흐름을 모의 검사합니다. 두 검사는 실제 패키지·서비스·브라우저·레지스트리·클립보드를 변경하지 않습니다. 실제 새 환경에서의 설치·BPF 로드 검증을 대신하지 않습니다.
 
@@ -24,4 +24,4 @@
 
 Android 앱 소스와 빌드 안내는 [android/README.md](android/README.md)에 있습니다. APK는 Android 8.0 이상에서 설치할 수 있으며, 휴대전화의 설치 확인과 최초 사진 접근 권한 선택은 사용자가 직접 합니다.
 
-새 버전을 배포할 때는 기존 릴리스 서명 키로 APK를 빌드하고, 새 GitHub Release에 파일 이름 `PhotoSorter.apk`로 첨부하세요. [앱 설치 페이지](photo-sorter.html)는 최신 릴리스를 가리키므로 같은 파일 이름을 유지하면 링크를 바꿀 필요가 없습니다. 서명 키와 비밀번호는 저장소에 올리지 마세요.
+새 버전을 배포할 때는 기존 서명 키로 APK를 빌드하고 서버의 비공개 `/srv/files/artifacts/PhotoSorter.apk`에 둡니다. [앱 설치 페이지](photo-sorter.html)는 서버의 회원 전용 다운로드 경로를 사용합니다. 파일이 바뀌면 `server/fetch_artifacts.py`, `server/download_catalog.py`, 비공개 다운로드 manifest의 SHA-256을 함께 갱신하고 설치를 확인하세요. GitHub Release에는 APK를 첨부하지 않습니다. 서명 키와 비밀번호는 저장소에 올리지 마세요.
