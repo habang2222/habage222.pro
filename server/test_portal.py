@@ -55,6 +55,20 @@ class PortalTests(unittest.TestCase):
     def ready(self):
         self.rows("INSERT OR REPLACE INTO rental_runtime VALUES(1,?,1,'ready')", (int(time.time()),))
 
+    def test_home_loads_current_hbcode_list_without_stale_script_cache(self):
+        home = self.client.get('/', base_url='https://test.example')
+        self.assertIn(b'links.js?v=8', home.data)
+        self.assertIn(b'home.js?v=6', home.data)
+        home.close()
+        links = self.client.get('/links.js?v=8', base_url='https://test.example')
+        self.assertIn(b'title: "HBcode"', links.data)
+        self.assertEqual(links.headers['Cache-Control'], 'no-cache, max-age=0, must-revalidate')
+        links.close()
+        script = self.client.get('/home.js?v=6', base_url='https://test.example')
+        self.assertIn(b'downloadOnly', script.data)
+        self.assertEqual(script.headers['Cache-Control'], 'no-cache, max-age=0, must-revalidate')
+        script.close()
+
     def rental(self):
         return self.write('/api/rentals', {'name': '개발 서버', 'publicKey': example_key()})
 

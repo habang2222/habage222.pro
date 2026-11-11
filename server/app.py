@@ -273,6 +273,9 @@ def create_app(config=None):
         if request.path.startswith(('/api/', '/auth/', '/downloads/')):
             response.headers['Cache-Control'] = 'no-store'
             response.headers['Vary'] = 'Cookie'
+        elif request.path.endswith('.js'):
+            # The homepage link list changes without renaming its script file.
+            response.headers['Cache-Control'] = 'no-cache, max-age=0, must-revalidate'
         if getattr(g, 'cookie_changed', False):
             response.set_cookie(cookie_name, g.token, max_age=SESSION_TTL if g.user else ANON_SESSION_TTL, secure=secure,
                                 httponly=True, samesite='Lax', path='/')
