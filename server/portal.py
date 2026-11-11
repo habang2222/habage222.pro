@@ -7,7 +7,7 @@ import time
 from functools import wraps
 from pathlib import Path
 
-from flask import abort, g, jsonify, request, send_file, send_from_directory, redirect
+from flask import abort, g, jsonify, request, send_file, redirect
 from rental_common import PLAN, RESERVED, TERMINAL, TRANSITIONS, capacity_limit, validate_public_key
 from download_catalog import PROGRAMS, catalog, resolve_file
 
@@ -224,8 +224,6 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
 
     @app.get('/downloads/<filename>')
     def site_download(filename):
-        if filename == 'manifest.json':
-            return send_from_directory(Path(app.config['SITE_ROOT']) / 'downloads', filename)
         program = next((key for key, value in PROGRAMS.items() if filename in value['files']), None)
         if program is None:
             abort(404)

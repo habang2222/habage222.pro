@@ -160,6 +160,7 @@ class PortalTests(unittest.TestCase):
         response = anonymous.get('/api/v1/programs/lecture-alarm/download?key=' + issued['secret'], base_url='https://test.example')
         self.assertEqual(response.status_code, 401)
         self.assertEqual(anonymous.get('/downloads/unknown.zip', base_url='https://test.example').status_code, 404)
+        self.assertEqual(anonymous.get('/downloads/manifest.json', base_url='https://test.example').status_code, 404)
         self.assertEqual(self.rows('SELECT count(*) FROM download_events')[0][0], 1)
 
     def test_request_needs_approval_then_worker_creates_and_lifecycle(self):
