@@ -98,6 +98,47 @@ class CommunityTests(unittest.TestCase):
         self.signup()
         self.assertEqual(self.write('/api/auth/logout', {}, csrf=stale).status_code, 403)
 
+    def test_privacy_requests_are_private_and_reviewed_by_admin(self):
+        self.assertEqual(self.client.get('/api/privacy-requests', base_url='https://test.example').status_code, 401)
+        self.assertEqual(self.write('/api/privacy-requests', {'kind': 'export'}).status_code, 401)
+        member = self.signup().json['user']
+        self.assertEqual(self.client.get('/api/privacy-requests', base_url='https://test.example').json['requests'], [])
+        self.assertEqual(self.write('/api/privacy-requests', {'kind': 'unknown'}).status_code, 400)
+        self.assertEqual(self.write('/api/privacy-requests', {'kind': 'delete', 'message': 'a' * 1001}).status_code, 400)
+        created = self.write('/api/privacy-requests', {'kind': 'export', 'message': '내 데이터 확인'} )
+        self.assertEqual(created.status_code, 201, created.json)
+        request_id = created.json['request']['id']
+        self.assertEqual(created.json['request']['status'], 'pending')
+        self.assertEqual(self.write('/api/privacy-requests', {'kind': 'export'}).status_code, 409)
+        self.assertEqual(self.client.get('/api/privacy-requests', base_url='https://test.example').json['requests'][0]['id'], request_id)
+        self.assertEqual(self.client.get('/api/admin/privacy-requests', base_url='https://test.example').status_code, 403)
+
+        other = self.app.test_client()
+        other_csrf = self.start(other)
+        self.signup(email='other@example.com', client=other, csrf=other_csrf)
+        self.assertEqual(other.get('/api/privacy-requests', base_url='https://test.example').json['requests'], [])
+
+        admin_config = self.config | {'ADMIN_USER_IDS': member['id']}
+        admin_app = create_app(admin_config)
+        admin_client = admin_app.test_client()
+        admin_client.set_cookie('__Host-habang_sid', self.client.get_cookie('__Host-habang_sid', domain='test.example').value,
+                                domain='test.example')
+        admin_csrf = self.start(admin_client)
+        listing = admin_client.get('/api/admin/privacy-requests', base_url='https://test.example')
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(listing.json['requests'][0]['email'], 'member@example.com')
+        self.assertEqual(listing.json['requests'][0]['message'], '내 데이터 확인')
+        self.assertEqual(self.write(f'/api/admin/privacy-requests/{request_id}/review', {'status': 'acknowledged'},
+                                    client=admin_client, csrf=admin_csrf).status_code, 200)
+        self.assertEqual(self.write(f'/api/admin/privacy-requests/{request_id}/review', {'status': 'completed'},
+                                    client=admin_client, csrf=admin_csrf).status_code, 200)
+        self.assertEqual(self.write(f'/api/admin/privacy-requests/{request_id}/review', {'status': 'completed'},
+                                    client=admin_client, csrf=admin_csrf).status_code, 409)
+        self.assertEqual(self.client.get('/api/privacy-requests', base_url='https://test.example').json['requests'][0]['status'], 'completed')
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            events = connection.execute("SELECT COUNT(*) FROM admin_events WHERE action='privacy:completed'").fetchone()[0]
+        self.assertEqual(events, 1)
+
     def test_comments_are_persistent_scoped_and_owner_only(self):
         self.assertEqual(self.write('/api/comments', {'page': '/', 'body': 'anonymous'}).status_code, 401)
         self.signup()

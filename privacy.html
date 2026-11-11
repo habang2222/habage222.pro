@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8bdedc">
+  <meta name="description" content="habang222 계정, Google·GitHub 로그인, 댓글, 다운로드와 서버 대여에 관한 개인정보처리방침">
+  <title>개인정보처리방침 | habang222</title>
+  <link rel="stylesheet" href="/portal.css?v=2"><link rel="stylesheet" href="/community.css?v=4"><link rel="stylesheet" href="/legal.css?v=1">
+  <script src="/community.js?v=6" defer></script>
+</head>
+<body>
+  <main class="legal-shell">
+    <a class="back-link" href="/">← habang222 홈</a>
+    <header class="legal-hero"><span class="eyebrow">HABANG222 · PRIVACY</span><h1>개인정보처리방침</h1><p>로그인과 서비스 이용에 어떤 정보를 쓰는지 설명합니다.</p><p class="legal-updated">시행일: 2026년 11월 11일</p></header>
+    <nav class="legal-nav" aria-label="서비스 안내"><a aria-current="page" href="/privacy.html">개인정보처리방침</a><a href="/terms.html">이용약관</a><a href="/support.html">고객지원·정보 요청</a></nav>
+    <div class="legal-card">
+      <section><h2>1. 운영자와 적용 범위</h2><p>habang222(이하 “사이트”)는 <a href="https://habang222.pro/">habang222.pro</a>에서 회원 로그인, 댓글, 프로그램 다운로드·API 키, Linux 워크스페이스 대여를 제공합니다. 문의 및 개인정보 요청 연락처는 <a href="mailto:victor6580a@gmail.com">victor6580a@gmail.com</a>입니다. 이 방침은 사이트 계정과 서버에 저장되는 정보에 적용됩니다. 별도 프로그램이 기기에서 처리하는 파일과 권한은 해당 프로그램의 설명을 확인해 주세요.</p></section>
+      <section><h2>2. 수집하거나 생성하는 정보</h2><ul>
+        <li><strong>Google 로그인:</strong> Google 계정의 고유 식별자, 인증된 이메일 주소를 받습니다. 기본 프로필 이름은 회원가입 화면의 제안값으로만 사용하며, 최종 이름·닉네임은 회원이 직접 정합니다. Google 권한은 <code>openid email profile</code>이고 Gmail·Drive 접근 권한은 요청하지 않습니다.</li>
+        <li><strong>GitHub 로그인:</strong> GitHub 고유 식별자와 인증된 기본 이메일 주소를 받습니다. 프로필 이름 또는 로그인명은 가입 화면의 제안값으로만 사용합니다. 권한은 <code>read:user user:email</code>입니다.</li>
+        <li><strong>회원가입·로그인:</strong> 인증된 이메일(로그인 아이디), 직접 입력한 닉네임·이름, 비밀번호의 Argon2id 해시, 가입·인증 시간, 세션 식별자의 해시를 저장합니다. 비밀번호 원문과 Google·GitHub 액세스 토큰은 회원 DB에 저장하지 않습니다.</li>
+        <li><strong>서비스 이용:</strong> 직접 작성한 댓글과 시간, 프로그램별 API 키의 해시·이름·범위·만료 및 사용 기록, 다운로드 파일·시간, 대여 워크스페이스의 이름·SSH 공개키·승인 및 실행 상태를 저장합니다. 댓글의 닉네임·내용·시간은 해당 페이지에 공개됩니다. API 키 원문은 발급 직후 한 번만 표시합니다.</li>
+        <li><strong>보안·운영:</strong> 요청 속도 제한을 위한 주소·계정 기반 해시, 접속 및 오류 기록이 처리될 수 있습니다. <a href="/support.html">정보 열람·삭제 요청</a>을 보내면 요청 종류·내용·처리 상태·시간을 저장합니다.</li>
+      </ul></section>
+      <section><h2>3. 이용 목적</h2><p>이메일 소유 확인, 계정 로그인·연결, 회원 권한 확인, 댓글 표시와 관리, 프로그램 파일 및 API 키 제공, 서버 대여 승인·생성·원격 접속 정보 제공, 부정 이용 방지와 장애 복구에 필요한 범위에서 사용합니다. Google 계정 정보는 광고에 사용하거나 판매하지 않습니다.</p></section>
+      <section><h2>4. 외부 서비스와 정보 흐름</h2><p>회원이 Google·GitHub 로그인을 선택하면 해당 제공자가 인증을 처리하고 확인된 신원 정보를 사이트에 전달합니다. 공개 웹 요청은 Cloudflare를 거쳐 서버에 도착합니다. 메인 서버 장애 시 GitHub Pages가 공개 정적 화면을 제공할 수 있지만, 장애 화면은 회원 DB, 댓글, API 키 또는 다운로드 파일을 제공하지 않습니다. 서비스 운영에 필요한 이 처리 외에 회원 정보를 광고주에게 판매하거나 별도 광고 목적으로 제3자에게 제공하지 않습니다. 외부 서비스의 자체 처리에는 각 서비스의 개인정보 방침도 적용됩니다.</p></section>
+      <section><h2>5. 보관과 보호</h2><p>회원과 서비스 기록은 계정 및 서비스를 운영하는 동안 서버 DB에 보관합니다. 로그인 세션은 최대 7일, API 키는 선택한 7·30·90일 후 만료됩니다. DB는 장애 복구용으로 주기적으로 백업하며, 30일이 지난 백업 중 최근 7개를 제외한 파일을 정리합니다. 따라서 계정 자료를 삭제해도 이전 백업에서는 교체·정리 때까지 남을 수 있습니다. 서버 접근은 제한하고, 비밀번호·세션·API 키 원문 대신 해시를 저장합니다.</p></section>
+      <section><h2>6. 보유기간 종료와 파기</h2><p>보유 목적이 끝나거나 삭제 요청을 실제로 처리할 때 운영 DB의 해당 자료를 삭제하거나 필요한 경우 개인을 알아볼 수 없게 처리합니다. 종이로 수집하는 정보는 없으며, 전자 기록은 서버 저장소에서 제거합니다. 법령상 보존 의무가 확인된 자료는 해당 근거와 기간을 안내하고 별도로 관리합니다. 정기 백업에 남은 사본은 위 백업 정리 주기에 따라 교체·파기됩니다. 요청 접수만으로 즉시 파기되지는 않습니다.</p></section>
+      <section><h2>7. 쿠키와 자동 수집</h2><p>로그인 상태를 유지하기 위한 필수 세션 쿠키와 Google·GitHub 인증 과정의 임시 상태 쿠키를 사용합니다. 세션 쿠키는 Secure·HttpOnly·SameSite=Lax 속성을 사용하며, 광고 추적 쿠키는 설치하지 않습니다. 브라우저 설정에서 쿠키를 거부하거나 삭제할 수 있으나 로그인과 회원 전용 기능을 사용할 수 없거나 다시 로그인해야 할 수 있습니다. 요청 제한을 위해 접속 주소나 계정에서 만든 해시를 일정 기간 처리합니다.</p></section>
+      <section><h2>8. 본인의 정보 확인·정정·삭제</h2><p>로그인한 회원은 <a href="/support.html">고객지원·정보 요청</a>에서 본인 자료 열람·내보내기, 정정 또는 계정 삭제를 요청할 수 있습니다. 요청 접수만으로 계정이 즉시 삭제되지는 않으며, 관리자가 신원을 확인하고 처리합니다. 요청 상태는 같은 페이지에서 확인할 수 있습니다. 로그인할 수 없거나 법정대리인 자격으로 요청하는 경우 아래 연락처로 문의해 주세요. 메일이나 공개 GitHub 이슈에 비밀번호, API 키, 개인키를 보내지 마세요.</p></section>
+      <section><h2>9. 담당과 변경 안내</h2><p>개인정보 보호업무 및 관련 문의 담당: habang222 운영. 연락처: <a href="mailto:victor6580a@gmail.com">victor6580a@gmail.com</a>. 처리 방식이 바뀌면 이 페이지의 시행일과 내용을 갱신합니다.</p></section>
+    </div>
+  </main>
+  <footer class="legal-footer"><a href="/">habang222</a><a href="/privacy.html">개인정보처리방침</a><a href="/terms.html">이용약관</a><a href="/support.html">고객지원</a></footer>
+</body>
+</html>

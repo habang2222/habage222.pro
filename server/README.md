@@ -3,6 +3,21 @@
 헤더의 API 키는 `/api.html`, 서버 대여는 `/servers.html`, 관리자는 `/admin.html`에서 사용합니다.
 기존 `/services.html`은 두 전용 페이지로 안내합니다. 메인 링크 목록에는 서비스 카드를 넣지 않습니다.
 
+## Google·GitHub 로그인 공개 설정과 개인정보 요청
+
+공개 OAuth 콘솔에 입력할 앱 설명, 홈페이지·정책 URL, 지원 연락처, 승인 도메인, 콜백과
+브랜드 인증 절차는 [`docs/oauth-production-checklist.md`](../docs/oauth-production-checklist.md)에 적었습니다.
+Google은 `openid email profile`, GitHub는 `read:user user:email`만 요청합니다.
+Google Cloud의 브랜딩 검증·게시 상태는 코드 배포와 별도로 콘솔에서 확인해야 합니다.
+
+회원은 `/support.html`에서 자신의 데이터 열람·삭제 **요청**을 접수할 수 있습니다.
+`POST /api/privacy-requests`는 `{ "kind": "export" | "delete", "message": "..." }`를 받으며,
+`GET /api/privacy-requests`는 본인의 요청 상태만 반환합니다. 처리 자체는 자동으로 하지 않습니다.
+운영자는 `GET /api/admin/privacy-requests`에서 요청을 보고,
+`POST /api/admin/privacy-requests/<요청ID>/review`로 실제 처리 진행 상황을 기록합니다.
+`completed`는 실제 열람 자료 제공 또는 삭제 처리가 끝난 뒤에만 지정해야 합니다.
+모든 쓰기 요청은 기존 세션·Origin·CSRF 검사를 통과해야 합니다.
+
 ## 프로그램별 다운로드 API 키
 
 사이트의 `/downloads/<파일명>`은 이메일 인증과 회원가입을 마친 회원의 세션을 확인합니다. 외부 프로그램은

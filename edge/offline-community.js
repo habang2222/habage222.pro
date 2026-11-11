@@ -9,6 +9,7 @@
     ['habang222', './', 'hb-header-brand'],
     ['API 키', 'api.html', 'hb-link'],
     ['서버 대여', 'servers.html', 'hb-link'],
+    ['고객지원', 'support.html', 'hb-link'],
   ]) {
     const a = document.createElement('a');
     a.textContent = label;
