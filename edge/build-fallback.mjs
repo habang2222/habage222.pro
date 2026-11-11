@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -10,6 +11,9 @@ if (!process.argv[2] || destination === source || destination.startsWith(source 
 fs.mkdirSync(destination, {recursive: true});
 const notice = '<div class="hb-fallback-notice" role="status" aria-live="polite">서버가 일시적으로 연결되지 않아 정적 화면을 보여 드립니다. 로그인, 댓글, 다운로드, API 키, 서버 대여 및 원격 접속은 복구 후 이용할 수 있습니다.</div>';
 const style = '<link rel="stylesheet" href="offline.css">';
+function assetVersion(name) {
+  return createHash('sha256').update(fs.readFileSync(path.join(source, name))).digest('hex').slice(0, 12);
+}
 for (const entry of fs.readdirSync(source, {withFileTypes: true})) {
   if (!entry.isFile() || !/\.(?:html|css|js)$/.test(entry.name)) continue;
   if (entry.name === 'community.js' || entry.name === 'portal.js' || entry.name === 'support.js') continue;
@@ -22,6 +26,8 @@ for (const entry of fs.readdirSync(source, {withFileTypes: true})) {
   let html = fs.readFileSync(input, 'utf8');
   html = html.replace(/<\/head>/i, style + '</head>');
   if (entry.name === 'index.html') {
+    html = html.replace(/\bsrc="(\/?)((?:links|home)\.js)(?:\?[^"]*)?"/gi,
+      (_match, slash, name) => `src="${slash}${name}?v=${assetVersion(name)}"`);
     html = html.replace(/(<header class="home-hero"[^>]*>[\s\S]*?<\/header>)/i, match => match + notice);
   } else {
     html = html.replace(/<body(?:\s[^>]*)?>/i, match => match + notice);

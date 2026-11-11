@@ -3,6 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import worker, {isStaticPath} from '../edge/failover-worker.mjs';
@@ -19,6 +20,10 @@ test('published backup contains presentation files and offline scripts only', ()
     const html = fs.readFileSync(path.join(output, 'index.html'), 'utf8');
     assert.match(html, /hb-fallback-notice/);
     assert.match(html, /src="community\.js\?/);
+    for (const name of ['links.js', 'home.js']) {
+      const hash = createHash('sha256').update(fs.readFileSync(path.join(output, name))).digest('hex').slice(0, 12);
+      assert.ok(html.includes(`src="${name}?v=${hash}"`), name);
+    }
     assert.doesNotMatch(fs.readFileSync(path.join(output, 'community.js'), 'utf8'), /\/api\/session/);
     assert.doesNotMatch(fs.readFileSync(path.join(output, 'portal.js'), 'utf8'), /fetch\(/);
     assert.doesNotMatch(fs.readFileSync(path.join(output, 'support.js'), 'utf8'), /fetch\(/);
