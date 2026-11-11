@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const downloads = path.join(root, 'downloads');
 const hash = name => crypto.createHash('sha256').update(fs.readFileSync(path.join(downloads, name))).digest('hex');
+const embedded = name => fs.readFileSync(path.join(downloads, name)).toString('base64').match(/.{1,76}/g).join('\n');
 const hybrid = source => `@echo off\r\nsetlocal\r\nset "HABANG_SETUP_FILE=%~f0"\r\npowershell.exe -NoProfile -Command "$s=[IO.File]::ReadAllText($env:HABANG_SETUP_FILE); & ([scriptblock]::Create(($s -split '(?m)^# POWERSHELL\\r?$',2)[1]))"\r\nset "HABANG_SETUP_EXIT=%errorlevel%"\r\necho.\r\npause\r\nexit /b %HABANG_SETUP_EXIT%\r\n# POWERSHELL\r\n${source.replace(/\r?\n/g, '\r\n')}\r\n`;
 
 const psStart = `$ErrorActionPreference = 'Stop'
@@ -39,8 +40,11 @@ for (const app of extensions) {
   $stage = Join-Path $appRoot ('stage-' + [guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Path $stage -Force | Out-Null
   $archive = Join-Path $stage 'package.zip'
-  Write-Host 'Downloading the extension package...'
-  Invoke-WebRequest -UseBasicParsing -Uri 'https://habang222.pro/downloads/${app.zip}' -OutFile $archive
+  Write-Host 'Preparing the extension package included with this installer...'
+  $archiveBase64 = @'
+${embedded(app.zip)}
+'@
+  [IO.File]::WriteAllBytes($archive, [Convert]::FromBase64String($archiveBase64))
   if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne '${hash(app.zip)}') {
     throw 'The download checksum did not match. The package was not installed.'
   }
@@ -90,8 +94,11 @@ const mgBody = `${psStart}
   $stage = Join-Path $env:TEMP ('Habang-MGlogWH-' + [guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Path $stage | Out-Null
   $script = Join-Path $stage 'install-mglogwh.sh'
-  Write-Host 'Downloading the Ubuntu installer...'
-  Invoke-WebRequest -UseBasicParsing -Uri 'https://habang222.pro/downloads/install-mglogwh.sh' -OutFile $script
+  Write-Host 'Preparing the Ubuntu installer included with this file...'
+  $scriptBase64 = @'
+${embedded('install-mglogwh.sh')}
+'@
+  [IO.File]::WriteAllBytes($script, [Convert]::FromBase64String($scriptBase64))
   if ((Get-FileHash -LiteralPath $script -Algorithm SHA256).Hash -ne '${linuxHash}') { throw 'The download checksum did not match. Download a fresh installer from the website.' }
   $linuxPath = & wsl.exe -d Ubuntu-24.04 -- wslpath -a -u $script
   if ($LASTEXITCODE -ne 0 -or -not $linuxPath) { throw 'Could not access the downloaded installer from Ubuntu.' }
