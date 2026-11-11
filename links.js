@@ -2,6 +2,14 @@
 // description과 download를 지정하면 설명과 설치 파일 받기 버튼도 표시합니다.
 window.HABANG_LINKS = [
   {
+    title: "HBcode",
+    url: "downloads/HBcode-0.3.0-windows-x64.zip",
+    tags: ["windows", "notion", "code"],
+    download: "downloads/HBcode-0.3.0-windows-x64.zip",
+    downloadLabel: "Windows 설치 파일 받기",
+    downloadOnly: true
+  },
+  {
     title: "사진 빠른 분류",
     url: "photo-sorter.html",
     description: "사진마다 앨범을 골라 복사하는 Android 사진 정리 앱입니다.",

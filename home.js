@@ -44,6 +44,7 @@ const links = source.flatMap((entry, index) => {
     title: entry.title.trim(),
     description: typeof entry.description === "string" ? entry.description.trim() : "",
     download,
+    downloadOnly: entry.downloadOnly === true,
     downloadLabel: typeof entry.downloadLabel === "string" ? entry.downloadLabel : "설치 파일 받기",
     url: destination.href,
     external: destination.origin !== window.location.origin,
@@ -146,11 +147,14 @@ function createCard(link) {
     download.download = "";
     download.textContent = link.downloadLabel;
     download.setAttribute("aria-label", `${link.title}: ${link.downloadLabel}`);
-    const guide = document.createElement("a");
-    guide.className = "card-guide";
-    guide.href = link.url;
-    guide.textContent = "설명·설치 방법 →";
-    actions.append(download, guide);
+    actions.append(download);
+    if (!link.downloadOnly) {
+      const guide = document.createElement("a");
+      guide.className = "card-guide";
+      guide.href = link.url;
+      guide.textContent = "설명·설치 방법 →";
+      actions.append(guide);
+    }
     card.append(actions);
   }
   return card;

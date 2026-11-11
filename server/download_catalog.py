@@ -5,6 +5,7 @@ import json
 import os
 
 PROGRAMS = {
+    'hbcode': {'name': 'HBcode', 'defaultFile': 'HBcode-0.3.0-windows-x64.zip', 'files': ['HBcode-0.3.0-windows-x64.zip']},
     'photo-sorter': {'name': '사진 빠른 분류', 'defaultFile': 'PhotoSorter.apk', 'files': ['PhotoSorter.apk']},
     'mglogwh': {'name': 'MGlogWH + Control Room', 'defaultFile': 'MGlogWH-Setup.cmd', 'files': ['MGlogWH-Setup.cmd', 'install-mglogwh.sh']},
     'lecture-alarm': {'name': '싸강 완료 알림', 'defaultFile': 'cu-lms-lecture-alarm-v2.2.0.zip', 'files': ['LectureAlarm-Setup.cmd', 'cu-lms-lecture-alarm-v2.2.0.zip']},

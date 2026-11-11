@@ -76,6 +76,38 @@ class PortalTests(unittest.TestCase):
         self.write('/api/keys/' + key_id, {}, method='DELETE')
         self.assertEqual(self.client.get('/api/v1/programs/lecture-alarm', headers=headers, base_url='https://test.example').status_code, 401)
 
+    def test_hbcode_download_login_scope_and_integrity(self):
+        from pathlib import Path
+        site = Path(self.temp.name) / 'site'
+        (site / 'downloads').mkdir(parents=True)
+        filename = 'HBcode-0.3.0-windows-x64.zip'
+        payload = b'PK\x03\x04isolated-hbcode-fixture'
+        (site / 'downloads' / filename).write_bytes(payload)
+        digest = hashlib.sha256(payload).hexdigest()
+        (site / 'downloads/manifest.json').write_text(json.dumps({'sha256': {filename: digest}}), encoding='utf-8')
+        self.app = __import__('app').create_app({**self.config, 'SITE_ROOT': str(site)})
+        self.client = self.app.test_client()
+        self.csrf = self.start(self.client)
+        path = '/downloads/' + filename
+        guest = self.client.get(path, base_url='https://test.example')
+        self.assertEqual(guest.status_code, 302)
+        self.assertIn('download=hbcode', guest.location)
+        self.add_member()
+        member = self.client.get(path, base_url='https://test.example')
+        self.assertEqual(member.status_code, 200)
+        self.assertEqual(member.data, payload)
+        member.close()
+        program = next(row for row in self.client.get('/api/programs', base_url='https://test.example').json['programs'] if row['id'] == 'hbcode')
+        self.assertEqual(program['files'][0]['sha256'], digest)
+        issued = self.write('/api/keys', {'name': 'HBcode 테스트', 'program': 'hbcode'}).json
+        headers = {'Authorization': 'Bearer ' + issued['secret']}
+        result = self.client.get('/api/v1/programs/hbcode/download', headers=headers, base_url='https://test.example')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.data, payload)
+        result.close()
+        self.assertEqual(self.client.get('/api/v1/programs/mglogwh/download', headers=headers, base_url='https://test.example').status_code, 403)
+        self.assertEqual(self.client.get('/api/v1/programs/hbcode/files/unknown.zip', headers=headers, base_url='https://test.example').status_code, 404)
+
     def test_key_scope_expiry_and_cookie_are_independent(self):
         self.add_member()
         response = self.write('/api/keys', {'name': '프로그램 전용', 'program': 'lecture-alarm', 'days': 30})
