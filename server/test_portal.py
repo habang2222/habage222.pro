@@ -56,18 +56,40 @@ class PortalTests(unittest.TestCase):
         self.rows("INSERT OR REPLACE INTO rental_runtime VALUES(1,?,1,'ready')", (int(time.time()),))
 
     def test_home_loads_current_hbcode_list_without_stale_script_cache(self):
+        from pathlib import Path
+        root = Path(self.config['SITE_ROOT'])
+        links_digest = hashlib.sha256((root / 'links.js').read_bytes()).hexdigest()[:12]
+        home_digest = hashlib.sha256((root / 'home.js').read_bytes()).hexdigest()[:12]
         home = self.client.get('/', base_url='https://test.example')
-        self.assertIn(b'links.js?v=8', home.data)
-        self.assertIn(b'home.js?v=6', home.data)
+        self.assertIn(f'links.js?v={links_digest}'.encode(), home.data)
+        self.assertIn(f'home.js?v={home_digest}'.encode(), home.data)
+        self.assertEqual(home.headers['Cache-Control'], 'no-cache, max-age=0, must-revalidate')
         home.close()
-        links = self.client.get('/links.js?v=8', base_url='https://test.example')
+        links = self.client.get(f'/links.js?v={links_digest}', base_url='https://test.example')
         self.assertIn(b'title: "HBcode"', links.data)
         self.assertEqual(links.headers['Cache-Control'], 'no-cache, max-age=0, must-revalidate')
         links.close()
-        script = self.client.get('/home.js?v=6', base_url='https://test.example')
+        script = self.client.get(f'/home.js?v={home_digest}', base_url='https://test.example')
         self.assertIn(b'downloadOnly', script.data)
         self.assertEqual(script.headers['Cache-Control'], 'no-cache, max-age=0, must-revalidate')
         script.close()
+
+        site = Path(self.temp.name) / 'cache-site'
+        site.mkdir()
+        for filename in ('index.html', 'links.js', 'home.js'):
+            (site / filename).write_bytes((root / filename).read_bytes())
+        copy_app = __import__('app').create_app({**self.config, 'SITE_ROOT': str(site)})
+        copy_client = copy_app.test_client()
+        before = copy_client.get('/', base_url='https://test.example')
+        old_url = f'links.js?v={links_digest}'.encode()
+        self.assertIn(old_url, before.data)
+        before.close()
+        (site / 'links.js').write_bytes((site / 'links.js').read_bytes() + b'\n// new link\n')
+        updated_digest = hashlib.sha256((site / 'links.js').read_bytes()).hexdigest()[:12]
+        after = copy_client.get('/', base_url='https://test.example')
+        self.assertIn(f'links.js?v={updated_digest}'.encode(), after.data)
+        self.assertNotIn(old_url, after.data)
+        after.close()
 
     def rental(self):
         return self.write('/api/rentals', {'name': '개발 서버', 'publicKey': example_key()})
