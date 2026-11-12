@@ -6,7 +6,7 @@
   <title>Kali 원격 접속 | habang</title>
   <meta name="description" content="승인된 회원의 Kali 호스트 원격 데스크톱 접속">
   <link rel="stylesheet" href="/portal.css?v=2"><link rel="stylesheet" href="/community.css?v=7">
-  <script src="/community.js?v=8" defer></script><script src="/host-desktop.js?v=2" defer></script>
+  <script src="/community.js?v=8" defer></script><script src="/host-desktop.js?v=3" defer></script>
 </head>
 <body>
   <main class="portal-shell">
@@ -17,7 +17,7 @@
     <div id="desktop-member" hidden>
       <section class="panel"><div class="panel-heading"><h2>내 호스트 접속</h2><span id="desktop-badge" class="pill"></span></div><div id="desktop-current"></div></section>
       <section id="desktop-request-panel" class="panel" hidden><h2>호스트 접속 신청</h2><p class="muted">관리자가 이 신청을 따로 승인해야 합니다. 대여 컨테이너 승인과는 별개입니다. 회원마다 별도 Kali 계정을 만들며, 서버 관리자 파일에는 접근할 수 없습니다.</p>
-        <form id="desktop-request-form" class="form-grid"><label class="wide">SSH 공개키<textarea name="publicKey" rows="3" maxlength="1600" required placeholder="ssh-ed25519 AAAA…"></textarea></label><p class="muted wide">접속에 사용할 PC의 .pub 공개키 한 줄을 입력하세요. 개인키는 보내지 마세요.</p><label class="wide">Kali 원격 데스크톱 전용 비밀번호<input name="desktopPassword" type="password" autocomplete="new-password" minlength="12" maxlength="72" required></label><p class="muted wide">사이트 로그인 비밀번호와 다르게 정하고 안전하게 보관하세요. 서버에는 비밀번호 원문을 저장하지 않습니다.</p><button class="action primary" type="submit">접속 신청</button></form>
+        <form id="desktop-request-form" class="form-grid"><label class="wide">SSH 공개키<textarea name="publicKey" rows="3" maxlength="1600" required placeholder="ssh-ed25519 AAAA…"></textarea></label><p class="muted wide">접속에 사용할 PC의 .pub 공개키 한 줄을 입력하세요. 개인키는 보내지 마세요.</p><label class="wide">Kali 원격 데스크톱 전용 비밀번호<input name="desktopPassword" type="password" autocomplete="new-password" minlength="12" maxlength="72" required></label><p class="muted wide">영문·숫자·기호 12~72자로, 사이트 로그인 비밀번호와 다르게 정하세요. 서버에는 비밀번호 원문을 저장하지 않습니다.</p><button class="action primary" type="submit">접속 신청</button></form>
       </section>
       <section class="panel"><h2>접속 방법</h2><ol><li>관리자에게 Tailscale 초대를 받아 이 서버와 같은 네트워크에 PC를 연결합니다.</li><li>승인 후 표시되는 SSH 명령을 Windows PowerShell에서 실행한 채 유지합니다.</li><li>Windows 원격 데스크톱 연결(<code>mstsc</code>)에서 <code>127.0.0.1:13389</code>로 접속하고 Xorg 세션을 선택합니다.</li></ol><p class="notice subtle">Kali 호스트의 별도 화면이 열립니다. 서버 모니터의 현재 화면을 그대로 공유하지 않습니다. 호스트 계정은 서버의 커널·자원·네트워크를 함께 사용하며 컨테이너 수준의 격리는 제공하지 않습니다. RDP는 SSH 터널로 연결하고, PC 드라이브 공유는 사용하지 않습니다.</p></section>
     </div>

@@ -9,6 +9,14 @@
   const current = byId('desktop-current');
   const badge = byId('desktop-badge');
   const form = byId('desktop-request-form');
+  const feedback = document.createElement('p'); feedback.className = 'notice'; feedback.hidden = true;
+  feedback.setAttribute('role', 'status'); feedback.tabIndex = -1; form.after(feedback);
+  let submitting = false;
+  function requestMessage(text, error = false) {
+    feedback.textContent = text; feedback.hidden = false; feedback.classList.toggle('error', error);
+    feedback.focus({preventScroll:true}); feedback.scrollIntoView({block:'nearest',behavior:'instant'});
+  }
+  form.addEventListener('invalid', event => requestMessage(event.target.validationMessage || '필수 항목을 확인해 주세요.',true),true);
   let session = null;
   let epoch = 0;
   const labels = {pending: '관리자 승인 대기', approved: 'Kali 계정 준비 중', ready: '접속 가능', revoked: '접속 해제', failed: '준비 실패'};
@@ -56,6 +64,10 @@
     const row = data.request;
     badge.textContent = row ? labels[row.status] || row.status : '신청 전';
     requestPanel.hidden = !!(row && ['approved', 'ready'].includes(row.status)) || data.isAdmin;
+    form.hidden = row?.status === 'pending';
+    if (row?.status === 'pending' && feedback.hidden) {
+      feedback.textContent = '접수 완료 — 관리자 승인을 기다리고 있습니다.'; feedback.hidden = false;
+    }
     if (data.isAdmin) {
       badge.textContent = '관리자 접속';
       current.append(accessDetails('habang222', data.sshHost, true));
@@ -96,7 +108,7 @@
     const currentEpoch = ++epoch;
     const previousUserId = session?.user?.id;
     session = next || null;
-    if (previousUserId && previousUserId !== session?.user?.id) form.reset();
+    if (previousUserId && previousUserId !== session?.user?.id) { form.reset(); feedback.hidden = true; }
     const complete = Boolean(session?.user?.verified && session?.user?.registrationComplete);
     guest.hidden = complete;
     member.hidden = !complete;
@@ -117,15 +129,18 @@
   byId('desktop-login').addEventListener('click', () => window.dispatchEvent(new Event(session?.user ? 'habang:register' : 'habang:login')));
   form.addEventListener('submit', async event => {
     event.preventDefault();
+    if (submitting) return;
+    submitting = true;
     const button = form.querySelector('button[type=submit]'); button.disabled = true;
+    requestMessage('신청을 서버에 저장하는 중입니다…');
     try {
       const values = new FormData(form);
       await api('/api/host-desktop', {method: 'POST', body: JSON.stringify({
         publicKey: values.get('publicKey'), desktopPassword: values.get('desktopPassword')
       })});
-      form.reset(); await refresh(session); message('신청을 접수했습니다. 관리자의 별도 승인을 기다려 주세요.');
-    } catch (error) { message(error.message, true); }
-    finally { button.disabled = false; }
+      form.reset(); await refresh(session); requestMessage('접수 완료 — 관리자 승인을 기다리고 있습니다.');
+    } catch (error) { requestMessage('신청이 저장되지 않았습니다: ' + error.message, true); }
+    finally { submitting = false; button.disabled = false; }
   });
   byId('desktop-refresh').addEventListener('click', () => refresh(session));
   window.addEventListener('habang:session', event => refresh(event.detail));
