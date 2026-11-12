@@ -62,6 +62,7 @@
   function rentalRecord(row, forAdmin = false) {
     const record = node('article', 'record');
     record.append(node('strong', '', row.name), node('span', 'pill', labels[row.status] || row.status));
+    record.append(node('p', 'meta', row.plan === 'kali-workspace' ? 'Kali Linux 컨테이너 · 512 MB' : 'Debian Linux 컨테이너 · 384 MB'));
     if (forAdmin) record.append(node('p', 'meta', `신청자 ${row.ownerName} · 회원 ID ${row.user_id}`));
     record.append(node('p', 'meta', `신청 ${date(row.created_at)} · 만료 ${date(row.expires_at)}`));
     if (row.last_error) record.append(node('p', 'error', row.last_error));
@@ -242,7 +243,7 @@
       event.preventDefault(); const form = event.currentTarget; const button = form.querySelector('button'); button.disabled = true;
       try {
         const values = new FormData(form);
-        const result = await api('/api/rentals', {method: 'POST', body: JSON.stringify({name: values.get('name'), publicKey: values.get('publicKey')})});
+        const result = await api('/api/rentals', {method: 'POST', body: JSON.stringify({name: values.get('name'), plan: values.get('plan'), publicKey: values.get('publicKey')})});
         form.reset(); await loadMember(); message(result.rental.status === 'pending' ? '신청을 접수했습니다. 관리자 승인을 기다려 주세요.' : '신청을 접수했습니다. 서버를 자동 생성합니다.');
       } catch (error) { message(error.message, true); button.disabled = false; }
     });

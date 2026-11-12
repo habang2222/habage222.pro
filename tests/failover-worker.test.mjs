@@ -27,6 +27,7 @@ test('published backup contains presentation files and offline scripts only', ()
     assert.doesNotMatch(fs.readFileSync(path.join(output, 'community.js'), 'utf8'), /\/api\/session/);
     assert.doesNotMatch(fs.readFileSync(path.join(output, 'portal.js'), 'utf8'), /fetch\(/);
     assert.doesNotMatch(fs.readFileSync(path.join(output, 'support.js'), 'utf8'), /fetch\(/);
+    assert.doesNotMatch(fs.readFileSync(path.join(output, 'host-desktop.js'), 'utf8'), /fetch\(/);
     for (const name of ['privacy.html', 'terms.html', 'support.html', 'legal.css']) {
       assert.equal(fs.existsSync(path.join(output, name)), true, name);
     }

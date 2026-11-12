@@ -2,13 +2,15 @@ import base64
 from contextlib import closing
 import hashlib
 import json
+import os
 import sqlite3
 import struct
 import time
 import unittest
+from unittest.mock import patch
 
 import test_app as fixtures
-from rental_worker import Worker
+from rental_worker import Runtime, Worker
 from rental_common import validate_public_key
 
 
@@ -93,6 +95,47 @@ class PortalTests(unittest.TestCase):
 
     def rental(self):
         return self.write('/api/rentals', {'name': '개발 서버', 'publicKey': example_key()})
+
+    def test_kali_rental_option_preserves_existing_workspace_plan(self):
+        owner = self.add_member()
+        self.make_admin(owner)
+        self.ready()
+        services = self.client.get('/api/services', base_url='https://test.example').json
+        self.assertEqual({plan['id'] for plan in services['plans']}, {'workspace', 'kali-workspace'})
+        self.assertEqual(next(plan['memoryMb'] for plan in services['plans'] if plan['id'] == 'kali-workspace'), 512)
+        rejected = self.write('/api/rentals', {'name': '잘못된 유형', 'plan': 'unknown', 'publicKey': example_key()})
+        self.assertEqual(rejected.status_code, 400)
+        self.assertEqual(self.rows('SELECT count(*) FROM rentals')[0][0], 0)
+        result = self.write('/api/rentals', {'name': 'Kali 작업 공간', 'plan': 'kali-workspace',
+                                             'publicKey': example_key()})
+        self.assertEqual(result.status_code, 201)
+        self.assertEqual(result.json['rental']['plan'], 'kali-workspace')
+        self.assertEqual(self.rows('SELECT plan FROM rentals')[0][0], 'kali-workspace')
+
+    def test_kali_runtime_uses_its_own_image_and_memory_limit(self):
+        from pathlib import Path
+        with patch.dict(os.environ, {'RENTAL_STATE': str(Path(self.temp.name) / 'rental-state')}):
+            runtime = Runtime()
+        runtime.images = {'workspace': 'sha256:debian', 'kali-workspace': 'sha256:kali'}
+        row = {'id': 'a' * 32, 'plan': 'kali-workspace', 'ssh_port': 23000,
+               'public_key': example_key()}
+        (runtime.state / (row['id'] + '.hostkey')).write_text('test', encoding='ascii')
+        details = {'HostConfig': {'Memory': 512 * 1024 * 1024, 'PidsLimit': 64,
+                                  'ReadonlyRootfs': True}, 'State': {'Running': True}}
+        inspections = iter((None, details))
+        runtime.inspect = lambda _row: next(inspections)
+        commands = []
+        def fake_command(*args, **_kwargs):
+            commands.append(args)
+            return '[]' if args[:2] == ('ps', '-a') else ''
+        runtime.command = fake_command
+        runtime.wait_for_ssh = lambda _row: 'SHA256:test'
+        self.assertEqual(runtime.create(row), 'SHA256:test')
+        create = next(args for args in commands if args[0] == 'create')
+        self.assertIn('sha256:kali', create)
+        self.assertNotIn('sha256:debian', create)
+        self.assertEqual(create[create.index('--memory') + 1], '512m')
+        self.assertIn('pro.habang.plan=kali-workspace', create)
 
     def test_keys_only_reveal_secret_once_and_revoke(self):
         owner = self.add_member()

@@ -45,7 +45,8 @@ values = {'HOME': account.pw_dir, 'XDG_RUNTIME_DIR': f'/run/user/{account.pw_uid
           'DBUS_SESSION_BUS_ADDRESS': f'unix:path=/run/user/{account.pw_uid}/bus',
           'DATABASE': '/srv/files/data/community.sqlite3', 'RENTAL_STATE': account.pw_dir + '/instances',
           'RENTAL_BIND_ADDRESS': '100.110.205.65', 'RENTAL_MAX_INSTANCES': '2',
-          'RENTAL_IMAGE': 'localhost/habang-workspace:2'}
+          'RENTAL_IMAGE': 'localhost/habang-workspace:2',
+          'RENTAL_KALI_IMAGE': 'localhost/habang-kali-workspace:1'}
 path = Path('/srv/files/config/rental-worker.env')
 path.write_text(''.join(k + '=' + v + '\n' for k, v in values.items()))
 path.chmod(0o600)

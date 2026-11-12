@@ -44,12 +44,13 @@
   const homeLink = el('a', 'hb-header-brand', 'habang222'); homeLink.href = '/';
   const apiLink = el('a', 'hb-link', 'API 키'); apiLink.href = '/api.html';
   const rentalsLink = el('a', 'hb-link', '서버 대여'); rentalsLink.href = '/servers.html';
+  const desktopLink = el('a', 'hb-link', 'Kali 원격'); desktopLink.href = '/host-desktop.html'; desktopLink.hidden = true;
   const supportLink = el('a', 'hb-link', '고객지원'); supportLink.href = '/support.html';
   const adminLink = el('a', 'hb-link', '관리자'); adminLink.href = '/admin.html'; adminLink.hidden = true;
-  for (const link of [apiLink, rentalsLink, supportLink, adminLink]) {
+  for (const link of [apiLink, rentalsLink, desktopLink, supportLink, adminLink]) {
     if (link.getAttribute('href') === page) link.setAttribute('aria-current', 'page');
   }
-  toolbar.append(homeLink, apiLink, rentalsLink, supportLink, adminLink);
+  toolbar.append(homeLink, apiLink, rentalsLink, desktopLink, supportLink, adminLink);
   toolbar.append(account);
   const loginButton = button('로그인 · 회원가입', () => showAuth('login'));
   toolbar.append(loginButton);
@@ -225,6 +226,7 @@
 
   function renderAccount() {
     const complete = Boolean(state.user?.verified && state.user?.registrationComplete);
+    desktopLink.hidden = !complete;
     adminLink.hidden = !state.user?.isAdmin || !complete;
     if (ready) {
       window.habangSession = {...state};
