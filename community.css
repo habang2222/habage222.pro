@@ -35,7 +35,7 @@
 @media(max-width:650px){.hb-toolbar{padding:12px 20px}.hb-toolbar .hb-button{font-size:13px}.hb-community{margin:24px 16px 40px;padding:22px 18px}.hb-guest{padding:18px}.hb-dialog{padding:26px 22px}.hb-dialog h2{font-size:22px}}
 html:has(.hb-dialog[open],.hb-menu[open]){overflow:hidden;scrollbar-gutter:stable}
 .hb-menu-toggle{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:0;border:1px solid #529d9b;border-radius:12px;background:transparent;color:#183637;font:25px/1 system-ui;cursor:pointer}
-.hb-menu{position:fixed;inset:0 auto 0 0;width:min(340px,88vw);height:100dvh;max-height:100dvh;margin:0;padding:24px;border:0;border-right:1px solid #c1dbd4;background:#f0fbf7;overflow-y:auto;overscroll-behavior:contain;box-shadow:16px 0 60px #123d3929}
+.hb-menu{position:fixed;inset:0 0 0 auto;width:min(340px,88vw);height:100dvh;max-height:100dvh;margin:0;padding:24px;border:0;border-left:1px solid #c1dbd4;background:#f0fbf7;overflow-y:auto;overscroll-behavior:contain;box-shadow:-16px 0 60px #123d3929}
 .hb-menu::backdrop{background:#0c282960}
 .hb-menu-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}.hb-menu-heading h2{margin:0;font-size:24px}
 .hb-menu-links{display:flex;flex-direction:column;gap:8px}.hb-menu-links .hb-link{display:block;width:100%;padding:14px 16px;border-radius:12px;text-align:left;text-decoration:none;background:#fff}.hb-menu-links .hb-link:hover{background:#dcefeb}
