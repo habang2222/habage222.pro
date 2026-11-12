@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#8bdedc">
   <meta name="description" content="habang222의 프로그램 소개·다운로드, 회원 댓글, 프로그램별 API 키와 Linux 워크스페이스 대여">
   <title>habang222 | 링크 모음</title>
-  <link rel="stylesheet" href="home.css?v=6">
-  <script src="links.js?v=8" defer></script>
-  <script src="home.js?v=6" defer></script>
-  <link rel="stylesheet" href="/community.css?v=4">
-  <script src="/community.js?v=7" defer></script>
+  <link rel="stylesheet" href="home.css?v=8">
+  <script src="links.js?v=9" defer></script>
+  <script src="home.js?v=7" defer></script>
+  <link rel="stylesheet" href="/community.css?v=7">
+  <script src="/community.js?v=8" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#link-list">링크 목록으로 건너뛰기</a>
@@ -22,26 +22,23 @@
   </header>
 
   <main class="home-main" id="links">
-    <p class="home-intro">habang222의 프로그램을 찾아보고 다운로드하세요. 회원은 댓글을 남기고, 프로그램별 API 키와 Linux 작업 공간을 이용할 수 있습니다.</p>
     <div class="search-area" role="search">
       <label for="link-search">검색</label>
       <div class="search-field">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="2"/><path d="m16 16 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <input id="link-search" type="search" placeholder="검색" autocomplete="off">
+        <input id="link-search" type="search" placeholder="프로그램 이름 또는 #태그로 검색" autocomplete="off" aria-describedby="search-help">
       </div>
     </div>
 
-    <div class="filter-row">
-      <span class="filter-label">태그</span>
-      <div class="tag-filters" id="tag-filters" aria-label="태그로 링크 필터링"></div>
-    </div>
+    <p id="search-help" class="sr-only">이름이나 설명으로 검색하거나, #사진정리처럼 태그 앞에 #을 붙여 검색하세요. 여러 검색어를 함께 사용할 수 있습니다.</p>
 
     <p class="sr-only" id="result-count" role="status" aria-live="polite"></p>
-    <div class="link-grid" id="link-list"></div>
+    <div class="card-viewport" id="card-viewport"><div class="link-grid" id="link-list"></div></div>
     <p class="empty-state" id="empty-state" hidden>검색 결과 없음</p>
+    <nav class="page-navigation" id="page-navigation" aria-label="프로그램 페이지"></nav>
 
     <noscript>
-      <p class="noscript-note">검색과 태그를 사용하려면 JavaScript를 켜 주세요. <a href="photo-sorter.html">사진 빠른 분류</a> · <a href="mglogwh.html">MGlogWH + Control Room</a> · <a href="lecture-alarm.html">싸강 완료 알림</a> · <a href="random-backspace.html">랜덤 백스페이스</a></p>
+      <p class="noscript-note">프로그램 검색과 페이지 이동을 사용하려면 JavaScript를 켜 주세요. <a href="photo-sorter.html">사진 빠른 분류</a> · <a href="mglogwh.html">MGlogWH + Control Room</a> · <a href="lecture-alarm.html">싸강 완료 알림</a> · <a href="random-backspace.html">랜덤 백스페이스</a></p>
     </noscript>
   </main>
 

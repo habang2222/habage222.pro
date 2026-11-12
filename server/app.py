@@ -312,10 +312,14 @@ def create_app(config=None):
         return row['count'] <= maximum
 
     def public_user():
+        if not g.user:
+            return None
+        linked = [row['provider'] for row in db().execute(
+            'SELECT DISTINCT provider FROM identities WHERE user_id=? ORDER BY provider', (g.user['id'],))]
         return ({'id': g.user['id'], 'name': g.user['display_name'], 'email': g.user['email'],
                  'verified': bool(g.user['email_verified_at']),
                  'registrationComplete': bool(g.user['registration_completed_at']),
-                 'isAdmin': g.user['id'] in admins} if g.user else None)
+                 'isAdmin': g.user['id'] in admins, 'linkedProviders': linked})
 
     def require_user():
         if not g.user:
