@@ -54,47 +54,26 @@ const links = source.flatMap((entry, index) => {
 }).filter(entry => entry.title);
 
 const searchInput = document.getElementById("link-search");
-const filterArea = document.getElementById("tag-filters");
 const list = document.getElementById("link-list");
 const resultCount = document.getElementById("result-count");
 const emptyState = document.getElementById("empty-state");
-let selectedTag = "";
-
-const allTags = [...new Set(links.flatMap(link => link.tags))].sort((left, right) => {
-  const preferred = ["android", "ai", "photo"];
-  const leftRank = preferred.indexOf(left);
-  const rightRank = preferred.indexOf(right);
-  if (leftRank !== -1 || rightRank !== -1) {
-    if (leftRank === -1) return 1;
-    if (rightRank === -1) return -1;
-    return leftRank - rightRank;
-  }
-  return left.localeCompare(right);
-});
+const navigation = document.getElementById("page-navigation");
+const viewport = document.getElementById("card-viewport");
+const pageImages = shuffledIllustrations();
+const pageSize = 6;
+let currentPage = 0;
+let matchingLinks = links;
 
 function normalized(value) {
   return value.normalize("NFKC").toLocaleLowerCase().trim();
 }
 
-function tagButton(label, value) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "tag-filter";
-  button.dataset.tag = value;
-  button.textContent = label;
-  button.setAttribute("aria-pressed", String(selectedTag === value));
-  button.addEventListener("click", () => {
-    selectedTag = selectedTag === value ? "" : value;
-    render();
-  });
-  return button;
-}
-
-function renderFilters() {
-  filterArea.replaceChildren(
-    tagButton("전체", ""),
-    ...allTags.map(tag => tagButton(`#${tag}`, tag))
-  );
+function matchesQuery(link, value) {
+  const tokens = normalized(value).split(/\s+/).filter(Boolean);
+  const searchable = normalized([link.title, link.description, ...link.tags].join(" "));
+  return tokens.every(token => token.startsWith('#')
+    ? token.length > 1 && link.tags.some(tag => normalized(tag).includes(token.slice(1)))
+    : searchable.includes(token));
 }
 
 function createCard(link) {
@@ -119,15 +98,6 @@ function createCard(link) {
   const title = document.createElement("h3");
   title.textContent = link.title;
 
-  const tags = document.createElement("div");
-  tags.className = "card-tags";
-  for (const tag of link.tags) {
-    const label = document.createElement("span");
-    label.className = "card-tag";
-    label.textContent = `#${tag}`;
-    tags.append(label);
-  }
-
   if (link.external) open.setAttribute("aria-label", `${link.title}, 새 창에서 열기`);
   open.append(artwork, title);
   card.append(open);
@@ -137,7 +107,6 @@ function createCard(link) {
     description.textContent = link.description;
     card.append(description);
   }
-  card.append(tags);
   if (link.download) {
     const actions = document.createElement("div");
     actions.className = "card-actions";
@@ -160,22 +129,63 @@ function createCard(link) {
   return card;
 }
 
-function render() {
-  const query = normalized(searchInput.value);
-  const visible = links.filter(link => {
-    const matchesTag = !selectedTag || link.tags.includes(selectedTag);
-    const searchable = normalized([link.title, link.description, ...link.tags].join(" "));
-    return matchesTag && (!query || searchable.includes(query));
-  });
-
-  for (const button of filterArea.children) {
-    button.setAttribute("aria-pressed", String(selectedTag === button.dataset.tag));
-  }
-  list.replaceChildren(...visible.map(createCard));
-  resultCount.textContent = `${visible.length}개의 링크`;
-  emptyState.hidden = visible.length !== 0;
+function changePage(index) {
+  currentPage = index;
+  render();
+  viewport.scrollIntoView({block: 'start', behavior: 'auto'});
+  navigation.querySelector('[aria-current="page"]')?.focus({preventScroll: true});
 }
 
-searchInput.addEventListener("input", render);
-renderFilters();
+function renderNavigation(totalPages) {
+  navigation.replaceChildren();
+  navigation.hidden = totalPages <= 1;
+  if (totalPages <= 1) return;
+  const arrow = (text, label, index, disabled) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'page-arrow'; button.textContent = text;
+    button.setAttribute('aria-label', label); button.disabled = disabled;
+    button.addEventListener('click', () => changePage(index));
+    return button;
+  };
+  navigation.append(arrow('←', '이전 프로그램 페이지', currentPage - 1, currentPage === 0));
+  for (let index = 0; index < totalPages; index++) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'page-choice';
+    button.setAttribute('aria-label', `${index + 1} 페이지`);
+    if (index === currentPage) button.setAttribute('aria-current', 'page');
+    const image = document.createElement('img');
+    image.src = pageImages[index % pageImages.length]; image.alt = ''; image.loading = 'lazy';
+    const number = document.createElement('span'); number.textContent = String(index + 1);
+    button.append(image, number);
+    button.addEventListener('click', () => changePage(index));
+    navigation.append(button);
+  }
+  navigation.append(arrow('→', '다음 프로그램 페이지', currentPage + 1, currentPage === totalPages - 1));
+}
+
+function render() {
+  matchingLinks = links.filter(link => matchesQuery(link, searchInput.value));
+  const totalPages = Math.ceil(matchingLinks.length / pageSize);
+  currentPage = Math.max(0, Math.min(currentPage, totalPages - 1));
+  list.replaceChildren(...matchingLinks.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map(createCard));
+  resultCount.textContent = `${matchingLinks.length}개 프로그램${totalPages ? ` · ${currentPage + 1} / ${totalPages} 페이지` : ''}`;
+  emptyState.hidden = matchingLinks.length !== 0;
+  renderNavigation(totalPages);
+}
+
+let touchStart = null;
+viewport.addEventListener('touchstart', event => {
+  if (event.touches.length === 1) touchStart = [event.touches[0].clientX, event.touches[0].clientY];
+}, {passive: true});
+viewport.addEventListener('touchend', event => {
+  if (!touchStart || !event.changedTouches.length) return;
+  const dx = event.changedTouches[0].clientX - touchStart[0];
+  const dy = event.changedTouches[0].clientY - touchStart[1];
+  touchStart = null;
+  if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  const next = currentPage + (dx < 0 ? 1 : -1);
+  if (next >= 0 && next < Math.ceil(matchingLinks.length / pageSize)) changePage(next);
+}, {passive: true});
+viewport.addEventListener('touchcancel', () => { touchStart = null; }, {passive: true});
+searchInput.addEventListener("input", () => { currentPage = 0; render(); });
 render();

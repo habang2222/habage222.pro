@@ -86,6 +86,18 @@ class CommunityTests(unittest.TestCase):
         self.assertTrue(res.json['user']['verified'])
         self.assertTrue(res.json['user']['registrationComplete'])
 
+    def test_session_reports_only_own_linked_provider_names(self):
+        member = self.signup().json['user']['id']
+        with closing(sqlite3.connect(self.config['DATABASE'])) as connection:
+            connection.execute('INSERT INTO identities(provider,subject,user_id,provider_email) VALUES(?,?,?,?)',
+                               ('google','private-provider-subject',member,'member@example.com'))
+            connection.commit()
+        response = self.client.get('/api/session', base_url='https://test.example')
+        self.assertEqual(response.json['user']['linkedProviders'], ['google'])
+        self.assertNotIn('private-provider-subject', response.get_data(as_text=True))
+        guest = self.app.test_client().get('/api/session', base_url='https://test.example')
+        self.assertIsNone(guest.json['user'])
+
     def test_csrf_and_origin_are_required(self):
         data = {'email': 'member@example.com', 'name': '회원', 'password': 'correct horse battery staple'}
         res = self.client.post('/api/auth/register', json=data, base_url='https://test.example')
@@ -191,7 +203,7 @@ class CommunityTests(unittest.TestCase):
         for page in pages:
             res = self.client.get('/' + page.name, base_url='https://test.example')
             self.assertEqual(res.status_code, 200)
-            self.assertIn(b'/community.js?v=7', res.data)
+            self.assertIn(b'/community.js?v=8', res.data)
             self.assertIn(b'/community.css?v=', res.data)
             res.close()
         res = self.client.get('/community.js', base_url='https://test.example')
