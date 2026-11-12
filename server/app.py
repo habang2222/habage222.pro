@@ -18,7 +18,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
-from flask import Flask, abort, g, jsonify, redirect, request, send_from_directory, session
+from flask import Flask, Response, abort, g, jsonify, redirect, request, send_from_directory, session
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 from portal import PORTAL_SCHEMA, register_portal
@@ -273,6 +273,11 @@ def create_app(config=None):
         if request.path.startswith(('/api/', '/auth/', '/downloads/')):
             response.headers['Cache-Control'] = 'no-store'
             response.headers['Vary'] = 'Cookie'
+        elif request.path in ('/', '/index.html'):
+            response.headers['Cache-Control'] = 'no-cache, max-age=0, must-revalidate'
+        elif request.path.endswith('.js'):
+            # The homepage link list changes without renaming its script file.
+            response.headers['Cache-Control'] = 'no-cache, max-age=0, must-revalidate'
         if getattr(g, 'cookie_changed', False):
             response.set_cookie(cookie_name, g.token, max_age=SESSION_TTL if g.user else ANON_SESSION_TTL, secure=secure,
                                 httponly=True, samesite='Lax', path='/')
@@ -800,6 +805,13 @@ def create_app(config=None):
                        ('.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico')))
         if not allowed:
             abort(404)
+        if path == 'index.html':
+            html = (root / path).read_text(encoding='utf-8')
+            for filename in ('links.js', 'home.js'):
+                digest = hashlib.sha256((root / filename).read_bytes()).hexdigest()[:12]
+                html = re.sub(rf'(?<=src="){re.escape(filename)}(?:\?v=[^"]*)?',
+                              f'{filename}?v={digest}', html)
+            return Response(html, mimetype='text/html')
         return send_from_directory(root, path)
 
     return app

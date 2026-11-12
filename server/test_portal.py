@@ -55,6 +55,42 @@ class PortalTests(unittest.TestCase):
     def ready(self):
         self.rows("INSERT OR REPLACE INTO rental_runtime VALUES(1,?,1,'ready')", (int(time.time()),))
 
+    def test_home_loads_current_hbcode_list_without_stale_script_cache(self):
+        from pathlib import Path
+        root = Path(self.config['SITE_ROOT'])
+        links_digest = hashlib.sha256((root / 'links.js').read_bytes()).hexdigest()[:12]
+        home_digest = hashlib.sha256((root / 'home.js').read_bytes()).hexdigest()[:12]
+        home = self.client.get('/', base_url='https://test.example')
+        self.assertIn(f'links.js?v={links_digest}'.encode(), home.data)
+        self.assertIn(f'home.js?v={home_digest}'.encode(), home.data)
+        self.assertEqual(home.headers['Cache-Control'], 'no-cache, max-age=0, must-revalidate')
+        home.close()
+        links = self.client.get(f'/links.js?v={links_digest}', base_url='https://test.example')
+        self.assertIn(b'title: "HBcode"', links.data)
+        self.assertEqual(links.headers['Cache-Control'], 'no-cache, max-age=0, must-revalidate')
+        links.close()
+        script = self.client.get(f'/home.js?v={home_digest}', base_url='https://test.example')
+        self.assertIn(b'downloadOnly', script.data)
+        self.assertEqual(script.headers['Cache-Control'], 'no-cache, max-age=0, must-revalidate')
+        script.close()
+
+        site = Path(self.temp.name) / 'cache-site'
+        site.mkdir()
+        for filename in ('index.html', 'links.js', 'home.js'):
+            (site / filename).write_bytes((root / filename).read_bytes())
+        copy_app = __import__('app').create_app({**self.config, 'SITE_ROOT': str(site)})
+        copy_client = copy_app.test_client()
+        before = copy_client.get('/', base_url='https://test.example')
+        old_url = f'links.js?v={links_digest}'.encode()
+        self.assertIn(old_url, before.data)
+        before.close()
+        (site / 'links.js').write_bytes((site / 'links.js').read_bytes() + b'\n// new link\n')
+        updated_digest = hashlib.sha256((site / 'links.js').read_bytes()).hexdigest()[:12]
+        after = copy_client.get('/', base_url='https://test.example')
+        self.assertIn(f'links.js?v={updated_digest}'.encode(), after.data)
+        self.assertNotIn(old_url, after.data)
+        after.close()
+
     def rental(self):
         return self.write('/api/rentals', {'name': '개발 서버', 'publicKey': example_key()})
 
@@ -75,6 +111,38 @@ class PortalTests(unittest.TestCase):
         self.assertNotIn('email', profile.json['program'])
         self.write('/api/keys/' + key_id, {}, method='DELETE')
         self.assertEqual(self.client.get('/api/v1/programs/lecture-alarm', headers=headers, base_url='https://test.example').status_code, 401)
+
+    def test_hbcode_download_login_scope_and_integrity(self):
+        from pathlib import Path
+        site = Path(self.temp.name) / 'site'
+        (site / 'downloads').mkdir(parents=True)
+        filename = 'HBcode-0.3.0-windows-x64.zip'
+        payload = b'PK\x03\x04isolated-hbcode-fixture'
+        (site / 'downloads' / filename).write_bytes(payload)
+        digest = hashlib.sha256(payload).hexdigest()
+        (site / 'downloads/manifest.json').write_text(json.dumps({'sha256': {filename: digest}}), encoding='utf-8')
+        self.app = __import__('app').create_app({**self.config, 'SITE_ROOT': str(site)})
+        self.client = self.app.test_client()
+        self.csrf = self.start(self.client)
+        path = '/downloads/' + filename
+        guest = self.client.get(path, base_url='https://test.example')
+        self.assertEqual(guest.status_code, 302)
+        self.assertIn('download=hbcode', guest.location)
+        self.add_member()
+        member = self.client.get(path, base_url='https://test.example')
+        self.assertEqual(member.status_code, 200)
+        self.assertEqual(member.data, payload)
+        member.close()
+        program = next(row for row in self.client.get('/api/programs', base_url='https://test.example').json['programs'] if row['id'] == 'hbcode')
+        self.assertEqual(program['files'][0]['sha256'], digest)
+        issued = self.write('/api/keys', {'name': 'HBcode 테스트', 'program': 'hbcode'}).json
+        headers = {'Authorization': 'Bearer ' + issued['secret']}
+        result = self.client.get('/api/v1/programs/hbcode/download', headers=headers, base_url='https://test.example')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.data, payload)
+        result.close()
+        self.assertEqual(self.client.get('/api/v1/programs/mglogwh/download', headers=headers, base_url='https://test.example').status_code, 403)
+        self.assertEqual(self.client.get('/api/v1/programs/hbcode/files/unknown.zip', headers=headers, base_url='https://test.example').status_code, 404)
 
     def test_key_scope_expiry_and_cookie_are_independent(self):
         self.add_member()
