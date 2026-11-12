@@ -6,6 +6,8 @@ import struct
 
 PLAN = {'id': 'workspace', 'name': 'Linux Workspace', 'cpu': 0.5, 'memoryMb': 384,
         'workspaceMb': 128, 'temporaryMb': 32, 'pids': 64, 'durationHours': 24}
+KALI_PLAN = {**PLAN, 'id': 'kali-workspace', 'name': 'Kali Linux Workspace', 'memoryMb': 512}
+PLANS = {plan['id']: plan for plan in (PLAN, KALI_PLAN)}
 TERMINAL = ('terminated', 'expired', 'cancelled', 'rejected')
 RESERVED = ('queued', 'provisioning', 'running', 'stopped', 'starting', 'stopping',
             'restarting', 'terminating', 'failed')

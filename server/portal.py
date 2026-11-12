@@ -8,7 +8,7 @@ from functools import wraps
 from pathlib import Path
 
 from flask import abort, g, jsonify, request, send_file, redirect
-from rental_common import PLAN, RESERVED, TERMINAL, TRANSITIONS, capacity_limit, validate_public_key
+from rental_common import PLAN, PLANS, RESERVED, TERMINAL, TRANSITIONS, capacity_limit, validate_public_key
 from download_catalog import PROGRAMS, catalog, resolve_file
 
 PORTAL_SCHEMA = """
@@ -110,7 +110,7 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
     def services():
         require_user()
         return jsonify(autoApproved=auto_approved(g.user['id']), isAdmin=g.user['id'] in admins,
-                       runtime=runtime(), plan=PLAN, capacity=capacity_limit(), maxKeys=5,
+                       runtime=runtime(), plan=PLAN, plans=list(PLANS.values()), capacity=capacity_limit(), maxKeys=5,
                        programs=catalog(app.config['SITE_ROOT']))
 
     @app.get('/api/programs')
@@ -245,7 +245,8 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
             public_key = validate_public_key(data.get('publicKey'))
         except ValueError as error:
             return fail(str(error))
-        if data.get('plan', PLAN['id']) != PLAN['id']:
+        plan_id = data.get('plan', PLAN['id'])
+        if plan_id not in PLANS:
             return fail('지원하지 않는 서버 유형입니다.')
         if not rate_limit('rental-create', 10, 86400, g.user['id']):
             return fail('대여 신청 횟수를 초과했습니다.', 429)
@@ -255,7 +256,7 @@ def register_portal(app, db, fail, payload, text, require_user, rate_limit, admi
             terminal = ','.join('?' for _ in TERMINAL)
             if db().execute(f'SELECT 1 FROM rentals WHERE user_id=? AND status NOT IN ({terminal})', (g.user['id'], *TERMINAL)).fetchone():
                 return fail('진행 중인 대여는 계정당 1개입니다.', 409)
-            db().execute("INSERT INTO rentals(id,user_id,name,plan,public_key,status,created_at,updated_at) VALUES(?,?,?,?,?,'pending',?,?)", (rental_id, g.user['id'], name, PLAN['id'], public_key, now(), now()))
+            db().execute("INSERT INTO rentals(id,user_id,name,plan,public_key,status,created_at,updated_at) VALUES(?,?,?,?,?,'pending',?,?)", (rental_id, g.user['id'], name, plan_id, public_key, now(), now()))
             if auto_approved(g.user['id']):
                 if not runtime()['ready']:
                     db().rollback()

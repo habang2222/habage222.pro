@@ -8,7 +8,7 @@ import sqlite3
 import subprocess
 import time
 
-from rental_common import PLAN, RESERVED, TERMINAL, capacity_limit, valid_id, validate_public_key
+from rental_common import PLAN, PLANS, RESERVED, TERMINAL, capacity_limit, valid_id, validate_public_key
 
 LOG = logging.getLogger('habang-rentals')
 
@@ -18,7 +18,10 @@ class Runtime:
         self.state = Path(os.environ.get('RENTAL_STATE', '/var/lib/habang-rentals/instances'))
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.bind = os.environ.get('RENTAL_BIND_ADDRESS', '100.110.205.65')
-        self.image = os.environ.get('RENTAL_IMAGE', 'localhost/habang-workspace:2')
+        self.images = {
+            PLAN['id']: os.environ.get('RENTAL_IMAGE', 'localhost/habang-workspace:2'),
+            'kali-workspace': os.environ.get('RENTAL_KALI_IMAGE', 'localhost/habang-kali-workspace:1'),
+        }
 
     def command(self, *args, timeout=45):
         result = subprocess.run(['/usr/bin/podman', *args], capture_output=True, text=True, timeout=timeout, check=False)
@@ -46,11 +49,12 @@ class Runtime:
             raise RuntimeError('Cgroup v2 required')
         if not {'cpu', 'memory', 'pids'} <= set(info.get('host', {}).get('cgroupControllers', [])):
             raise RuntimeError('CPU/memory/process controllers must be delegated')
-        self.image = self.command('image', 'inspect', '--format', '{{.Id}}', self.image)
+        self.images = {plan_id: self.command('image', 'inspect', '--format', '{{.Id}}', image)
+                       for plan_id, image in self.images.items()}
 
     @staticmethod
     def name(row):
-        if not valid_id(row['id']) or row['plan'] != PLAN['id']:
+        if not valid_id(row['id']) or row['plan'] not in PLANS:
             raise RuntimeError('Invalid rental identity')
         return 'hb-rental-' + row['id']
 
@@ -65,6 +69,9 @@ class Runtime:
         labels = details.get('Config', {}).get('Labels', {})
         if labels.get('pro.habang.rental') != row['id']:
             raise RuntimeError('Container ownership mismatch')
+        stored_plan = labels.get('pro.habang.plan')
+        if stored_plan != row['plan'] and (stored_plan is not None or row['plan'] != PLAN['id']):
+            raise RuntimeError('Container plan mismatch')
         return details
 
     def create(self, row):
@@ -72,6 +79,7 @@ class Runtime:
         if not 23000 <= row['ssh_port'] < 23020:
             raise RuntimeError('Invalid assigned SSH port')
         public_key = validate_public_key(row['public_key'])
+        plan = PLANS[row['plan']]
         details = self.inspect(row)
         if not details:
             existing = json.loads(self.command('ps', '-a', '--filter', 'label=pro.habang.managed=true', '--format', 'json'))
@@ -85,24 +93,25 @@ class Runtime:
                 subprocess.run(['/usr/bin/ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(host_key)], check=True, capture_output=True, timeout=10)
             host_key.chmod(0o600)
             self.command('create', '--name', name, '--label', 'pro.habang.managed=true',
-                         '--label', 'pro.habang.rental=' + row['id'], '--hostname', 'workspace-' + row['id'][:8],
+                         '--label', 'pro.habang.rental=' + row['id'], '--label', 'pro.habang.plan=' + row['plan'],
+                         '--hostname', 'workspace-' + row['id'][:8],
                          '--network', 'slirp4netns:allow_host_loopback=false,enable_ipv6=false',
                          '--publish', f'{self.bind}:{row["ssh_port"]}:2222',
-                         '--cpus', str(PLAN['cpu']), '--memory', str(PLAN['memoryMb']) + 'm',
-                         '--memory-swap', str(PLAN['memoryMb']) + 'm', '--pids-limit', str(PLAN['pids']),
+                         '--cpus', str(plan['cpu']), '--memory', str(plan['memoryMb']) + 'm',
+                         '--memory-swap', str(plan['memoryMb']) + 'm', '--pids-limit', str(plan['pids']),
                          '--ulimit', 'nofile=1024:2048', '--read-only', '--read-only-tmpfs=false',
-                         '--tmpfs', f'/home/tenant:rw,size={PLAN["workspaceMb"]}m,mode=0700,nosuid,nodev',
-                         '--tmpfs', f'/tmp:rw,size={PLAN["temporaryMb"]}m,mode=1777,nosuid,nodev',
+                         '--tmpfs', f'/home/tenant:rw,size={plan["workspaceMb"]}m,mode=0700,nosuid,nodev',
+                         '--tmpfs', f'/tmp:rw,size={plan["temporaryMb"]}m,mode=1777,nosuid,nodev',
                          '--tmpfs', '/run/sshd:rw,size=8m,mode=0755,nosuid,nodev',
                          '--mount', f'type=bind,src={key_path},destination=/run/tenant-key,ro=true',
                          '--mount', f'type=bind,src={host_key},destination=/run/workspace-host-key,ro=true',
                          '--cap-drop', 'all', '--cap-add', 'SETUID', '--cap-add', 'SETGID',
                          '--cap-add', 'CHOWN', '--cap-add', 'DAC_OVERRIDE', '--cap-add', 'SYS_CHROOT',
                          '--security-opt', 'no-new-privileges', '--log-driver', 'k8s-file',
-                         '--log-opt', 'max-size=1mb', self.image)
+                         '--log-opt', 'max-size=1mb', self.images[row['plan']])
             details = self.inspect(row)
         config = details.get('HostConfig', {})
-        if config.get('Memory') != PLAN['memoryMb'] * 1024 * 1024 or config.get('PidsLimit') != PLAN['pids'] or not config.get('ReadonlyRootfs'):
+        if config.get('Memory') != plan['memoryMb'] * 1024 * 1024 or config.get('PidsLimit') != plan['pids'] or not config.get('ReadonlyRootfs'):
             raise RuntimeError('Resource isolation is not active')
         if not details.get('State', {}).get('Running'):
             self.command('start', name)
@@ -286,7 +295,7 @@ class Worker:
             with self.db:
                 self.db.execute("UPDATE rental_jobs SET status='done',lease_until=NULL WHERE id=?", (job['id'],))
                 self.db.execute('UPDATE rentals SET status=?,updated_at=?,last_error=NULL,ssh_fingerprint=COALESCE(?,ssh_fingerprint),expires_at=COALESCE(expires_at,?) WHERE id=?',
-                                (target, stamp, fingerprint, stamp + PLAN['durationHours'] * 3600, row['id']))
+                                (target, stamp, fingerprint, stamp + PLANS[row['plan']]['durationHours'] * 3600, row['id']))
                 if target in TERMINAL:
                     self.db.execute('UPDATE rentals SET ssh_port=NULL,ssh_fingerprint=NULL WHERE id=?', (row['id'],))
             LOG.info('Rental %s action %s completed', row['id'], job['action'])

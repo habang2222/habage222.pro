@@ -12,6 +12,10 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app import create_app
 from rental_worker import Runtime, Worker
+from rental_common import PLANS
+
+plan_id = os.environ.get('RENTAL_QA_PLAN', 'workspace')
+plan = PLANS[plan_id]
 
 with tempfile.TemporaryDirectory(prefix='habang-rental-qa-') as scratch:
     folder = Path(scratch)
@@ -30,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix='habang-rental-qa-') as scratch:
             'INSERT INTO users(id,email,password_hash,display_name,created_at,full_name,email_verified_at,registration_completed_at) '
             'VALUES(?,NULL,NULL,?,?,?,?,?)',
             (identity, 'Runtime QA', stamp, 'Runtime QA', stamp, stamp))
-        connection.execute("INSERT INTO rentals(id,user_id,name,plan,public_key,status,created_at,updated_at) VALUES(?,?,?,'workspace',?,'queued',?,?)", (rental, identity, 'Disposable runtime test', key.with_suffix('.pub').read_text().strip(), stamp, stamp))
+        connection.execute("INSERT INTO rentals(id,user_id,name,plan,public_key,status,created_at,updated_at,ssh_port) VALUES(?,?,?,?,?,'queued',?,?,23019)", (rental, identity, 'Disposable runtime test', plan_id, key.with_suffix('.pub').read_text().strip(), stamp, stamp))
         connection.execute("INSERT INTO rental_jobs(id,rental_id,action,status,created_at) VALUES(?,?,'create','queued',?)", (secrets.token_hex(16), rental, stamp))
     runtime = Runtime()
     runtime.ready()
@@ -45,12 +49,21 @@ with tempfile.TemporaryDirectory(prefix='habang-rental-qa-') as scratch:
         host_public = (runtime.state / (rental + '.hostkey.pub')).read_text().strip()
         known_hosts.write_text(f'[{runtime.bind}]:{row["ssh_port"]} {host_public}\n')
         ssh = ['/usr/bin/ssh', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile=' + str(known_hosts), '-o', 'ConnectTimeout=10', '-i', str(key), '-p', str(row['ssh_port']), 'tenant@' + runtime.bind]
+        if os.environ.get('RENTAL_QA_EXTERNAL') == '1':
+            (folder / 'probe.json').write_text(json.dumps({'host':runtime.bind,'port':row['ssh_port'],'plan':plan_id}))
+            print('EXTERNAL_PROBE_READY ' + str(folder), flush=True)
+            for _ in range(180):
+                if (folder / 'probe.done').exists(): break
+                time.sleep(1)
+            assert (folder / 'probe.done').read_text() == 'ok'
+            print('EXTERNAL_KALI_CONTAINER_PROBE_OK', flush=True)
+            raise SystemExit(0)
         program = "import os,json,pathlib; p=pathlib.Path('/home/tenant/qa.txt');p.write_text('works');print(json.dumps({'uid':os.getuid(),'write':p.read_text(),'memory':pathlib.Path('/sys/fs/cgroup/memory.max').read_text().strip(),'cpu':pathlib.Path('/sys/fs/cgroup/cpu.max').read_text().strip(),'pids':pathlib.Path('/sys/fs/cgroup/pids.max').read_text().strip()}))"
         import shlex
         result = subprocess.run(ssh + ['python3 -c ' + shlex.quote(program)], capture_output=True, text=True, timeout=25, check=True)
         checks = json.loads(result.stdout)
         assert checks['uid'] == 1000 and checks['write'] == 'works'
-        assert checks['memory'] == str(384 * 1024 * 1024) and checks['pids'] == '64'
+        assert checks['memory'] == str(plan['memoryMb'] * 1024 * 1024) and checks['pids'] == '64'
         quota, period = checks['cpu'].split()
         assert int(quota) / int(period) == 0.5
         desktop_probe = ("import socket,urllib.request,json,pathlib;"
@@ -65,7 +78,10 @@ with tempfile.TemporaryDirectory(prefix='habang-rental-qa-') as scratch:
             raise RuntimeError('Desktop probe failed: ' + desktop_result.stderr[-700:])
         desktop = json.loads(desktop_result.stdout)
         assert desktop['web'] == 200 and desktop['vnc'].startswith('RFB ')
-        assert desktop['memory_used'] < 384 * 1024 * 1024
+        assert desktop['memory_used'] < plan['memoryMb'] * 1024 * 1024
+        if plan_id == 'kali-workspace':
+            release = subprocess.run(ssh + ['cat /etc/os-release'], capture_output=True, text=True, check=True)
+            assert 'ID=kali' in release.stdout
         allowed = subprocess.run(
             ssh[:-1] + ['-W', '127.0.0.1:6080', ssh[-1]],
             input='GET /vnc.html HTTP/1.0\r\nHost: localhost\r\n\r\n',

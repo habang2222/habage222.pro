@@ -1,0 +1,27 @@
+[Unit]
+Description=habang approved Kali host desktop accounts
+After=habang.service xrdp.service
+Requires=xrdp.service
+
+[Service]
+User=root
+Group=habang-data
+WorkingDirectory=/usr/local/lib/habang-host-desktop
+Environment=HOST_DESKTOP_DATABASE=/srv/files/data/community.sqlite3
+ExecStart=/usr/bin/python3 -E -s /usr/local/lib/habang-host-desktop/host_desktop_worker.py
+Restart=on-failure
+RestartSec=5
+UMask=0007
+StateDirectory=habang-desktops
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+ReadOnlyPaths=/usr /boot
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

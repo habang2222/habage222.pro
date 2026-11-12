@@ -22,6 +22,7 @@ from flask import Flask, Response, abort, g, jsonify, redirect, request, send_fr
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 from portal import PORTAL_SCHEMA, register_portal
+from host_desktop import HOST_DESKTOP_SCHEMA, register_host_desktop
 
 PASSWORDS = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
 DUMMY_HASH = PASSWORDS.hash(secrets.token_urlsafe(32))
@@ -108,6 +109,8 @@ def create_app(config=None):
         SMTP_USER=os.environ.get('SMTP_USER', ''),
         SMTP_PASSWORD=os.environ.get('SMTP_PASSWORD', ''),
         SMTP_FROM=os.environ.get('SMTP_FROM', ''),
+        HOST_DESKTOP_SSH_HOST=os.environ.get('HOST_DESKTOP_SSH_HOST', '100.110.205.65'),
+        HOST_DESKTOP_MAX_USERS=os.environ.get('HOST_DESKTOP_MAX_USERS', '2'),
     )
     if config:
         app.config.update(config)
@@ -150,6 +153,7 @@ def create_app(config=None):
         conn.execute('PRAGMA journal_mode=WAL')
         conn.executescript(SCHEMA)
         conn.executescript(PORTAL_SCHEMA)
+        conn.executescript(HOST_DESKTOP_SCHEMA)
         # Existing accounts retain their IDs and data, but must prove email
         # ownership and complete the new profile before privileged services.
         columns = {row[1] for row in conn.execute('PRAGMA table_info(users)')}
@@ -637,6 +641,7 @@ def create_app(config=None):
         return jsonify(ok=True)
 
     register_portal(app, db, fail, payload, text, require_verified_user, rate_limit, admins)
+    register_host_desktop(app, db, fail, payload, require_verified_user, rate_limit, admins)
 
     oauth = OAuth(app)
     google_id = app.config.get('GOOGLE_CLIENT_ID', os.getenv('GOOGLE_CLIENT_ID'))

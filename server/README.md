@@ -72,6 +72,8 @@ SSH는 Tailscale IP에만 23000~23019 범위에서 바인딩합니다. 방문자
 터널을 열고 브라우저에서
 `http://127.0.0.1:6080/vnc.html?autoconnect=1`에 접속합니다.
 호스트의 데스크톱과 VNC 포트는 공개하지 않습니다.
+별도 승인하는 Kali 호스트 RDP와 Kali 컨테이너 선택지의 설치·권한·회수 절차는
+[HOST_DESKTOP.md](HOST_DESKTOP.md)에 있습니다. 호스트 RDP는 루프백 SSH 터널로 접속합니다.
 호스트의 `habang-rental-egress.service`는 대여 UID의 사설망·Tailnet 신규
 outbound 연결을 막습니다. 워커 서비스는 이 방화벽 서비스에 의존해야 합니다.
 컨테이너는 호스트 커널을 공유하므로 별도 가상머신과 같은 격리로 설명하지 않습니다.
