@@ -57,10 +57,8 @@ body .hb-site-header .hb-toolbar { background: transparent; border-bottom: 0; }
   align-items: center;
   min-width: 0;
   padding: 22px 20px;
-  border: 1px solid #ffffffb3;
-  border-radius: 26px;
-  background: #ffffff9c;
-  box-shadow: 0 8px 24px #2056590a;
+  border: 0;
+  background: transparent;
   text-align: center;
   text-decoration: none;
 }
@@ -76,12 +74,12 @@ body .hb-site-header .hb-toolbar { background: transparent; border-bottom: 0; }
 .link-card h3 { margin: 0 0 9px; font-size: 23px; letter-spacing: -.045em; line-height: 1.35; word-break: keep-all; }
 .page-navigation { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px; margin-top: 36px; }
 .page-navigation[hidden] { display: none; }
-.page-choice { position: relative; width: 86px; height: 92px; border: 2px solid transparent; border-radius: 20px; background: #ffffff70; cursor: pointer; padding: 8px 10px 24px; }
+.page-choice { position: relative; width: 86px; height: 92px; border: 0; background: transparent; cursor: pointer; padding: 8px 10px 24px; }
 .page-choice img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .page-choice span { position: absolute; bottom: 3px; inset-inline: 0; font-size: 16px; font-weight: 900; color: #183637; }
-.page-choice[aria-current="page"] { border-color: #165e65; background: #fff; box-shadow: 0 6px 16px #165e6515; }
-.page-choice:hover { background: #fff; }
-.page-arrow { width: 42px; height: 42px; border: 1px solid #559d9c; border-radius: 50%; background: transparent; color: #165e65; font-size: 23px; cursor: pointer; }
+.page-choice[aria-current="page"] span { text-decoration: underline; text-underline-offset: 4px; }
+.page-choice:hover img { filter: brightness(.94); }
+.page-arrow { width: 42px; height: 42px; border: 0; background: transparent; color: #165e65; font-size: 23px; cursor: pointer; }
 .page-arrow:disabled { opacity: .3; cursor: default; }
 .empty-state, .noscript-note { margin: 22px 0 0; padding: 24px; border: 1px dashed #277c7b; border-radius: 18px; color: #234f50; }
 
