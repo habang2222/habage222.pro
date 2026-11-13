@@ -83,11 +83,23 @@ def browser_input(data, parser):
     for values in messages:
         if not values or values[0] not in ALLOWED_INPUT or len(values) > 8:
             raise ValueError('Unsupported input instruction')
-        if values[0] in ('mouse', 'key', 'size', 'sync'):
+        opcode = values[0]
+        if opcode in ('mouse', 'key', 'size', 'sync'):
             if not all(re.fullmatch(r'-?[0-9]{1,16}', value) for value in values[1:]):
                 raise ValueError('Invalid input event')
-        if values[0] == 'size' and (len(values) != 3 or not all(320 <= int(v) <= 2560 for v in values[1:])):
+        if opcode == 'key' and (len(values) != 3 or not 0 <= int(values[1]) <= 0xffffffff or values[2] not in ('0','1')):
+            raise ValueError('Invalid keyboard event')
+        if opcode == 'mouse' and (len(values) != 4 or not all(-32768 <= int(v) <= 32767 for v in values[1:3]) or not 0 <= int(values[3]) <= 31):
+            raise ValueError('Invalid mouse event')
+        if opcode == 'size' and (len(values) != 3 or not all(320 <= int(v) <= 2560 for v in values[1:])):
             raise ValueError('Invalid desktop size')
+        if opcode == 'sync' and (len(values) != 2 or not 0 <= int(values[1]) < 2**53):
+            raise ValueError('Invalid sync event')
+        if opcode == 'ack' and (len(values) != 4 or not re.fullmatch(r'[0-9]{1,8}',values[1]) or
+                                len(values[2]) > 128 or not re.fullmatch(r'[0-9]{1,5}',values[3])):
+            raise ValueError('Invalid stream acknowledgement')
+        if opcode in ('nop','disconnect') and len(values) != 1:
+            raise ValueError('Invalid control event')
     return messages
 
 
@@ -207,6 +219,7 @@ def register_remote_desktop(app, db, csrf_token, require_verified_user, rate_lim
             parser = Instructions()
             decoder = codecs.getincrementaldecoder('utf-8')()
             started = last_input = checked = time.monotonic()
+            input_window, input_bytes, input_count = started, 0, 0
             while True:
                 now = time.monotonic()
                 if now - started > 7200 or now - last_input > 1800:
@@ -224,7 +237,14 @@ def register_remote_desktop(app, db, csrf_token, require_verified_user, rate_lim
                         break
                 incoming = ws.receive(timeout=0)
                 if incoming is not None:
-                    for values in browser_input(incoming, parser):
+                    if now - input_window >= 1:
+                        input_window, input_bytes, input_count = now, 0, 0
+                    messages = browser_input(incoming, parser)
+                    input_bytes += len(incoming)
+                    input_count += len(messages)
+                    if input_bytes > 262144 or input_count > 2000:
+                        raise ValueError('Input rate exceeded')
+                    for values in messages:
                         if values[0] in ('mouse', 'key'):
                             last_input = now
                         stream.sendall(instruction(*values).encode('utf-8'))

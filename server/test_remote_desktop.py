@@ -21,7 +21,10 @@ class ProtocolTests(unittest.TestCase):
         for name in ('select','connect','clipboard','file','pipe','get','put','blob','argv'):
             with self.assertRaises(ValueError):
                 browser_input(instruction(name, '127.0.0.1'), Instructions())
-        self.assertEqual(browser_input(instruction('key', 1, 65), Instructions()), [['key','1','65']])
+        self.assertEqual(browser_input(instruction('key', 65, 1), Instructions()), [['key','65','1']])
+        for values in [('key',65,7),('key',2**40,1),('key',65),('mouse',0,0,1024),('sync',-1),('nop','extra')]:
+            with self.assertRaises(ValueError):
+                browser_input(instruction(*values), Instructions())
         for data in ('-1.x;', '999999.x;', '1.x!', 'x.x;', '1.' + 'A' * 32768):
             with self.assertRaises(ValueError):
                 Instructions().feed(data)

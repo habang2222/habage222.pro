@@ -53,7 +53,7 @@ def main():
         row = db.execute('''SELECT r.*,u.email_verified_at,u.registration_completed_at FROM host_desktop_requests r
                            JOIN users u ON u.id=r.user_id WHERE r.user_id=?''',(user_id,)).fetchone()
         # Only the running provisioner creates OS accounts. Concurrent useradd
-        # calls from a test and the reconciler can allocate duplicate UIDs.
+        # calls from a test and the reconciler can create conflicting identities.
         for _ in range(60):
             current=db.execute('SELECT status FROM host_desktop_requests WHERE user_id=?',(user_id,)).fetchone()
             if current['status']=='ready':break
@@ -100,7 +100,18 @@ def main():
         else:
             raise AssertionError('No real Xfce display frames over public WSS')
         # Exercise input on the disposable desktop, never a real member session.
-        ws.send(instruction('mouse',100,100,0)+instruction('key',1,65507)+instruction('key',0,65507))
+        ws.send(instruction('mouse',100,100,0)+instruction('key',65507,1)+instruction('key',65507,0))
+        account=pwd.getpwnam(username)
+        xfce_pid=subprocess.check_output(['/usr/bin/pgrep','-u',str(account.pw_uid),'-x','xfce4-session'],text=True).split()[0]
+        environment=dict(item.split(b'=',1) for item in Path('/proc/'+xfce_pid+'/environ').read_bytes().split(b'\0') if b'=' in item)
+        display=environment[b'DISPLAY'].decode()
+        authority=environment.get(b'XAUTHORITY',str(Path(account.pw_dir)/'.Xauthority').encode()).decode()
+        for _ in range(20):
+            pointer=subprocess.run(['/usr/sbin/runuser','-u',username,'--','/usr/bin/env','DISPLAY='+display,
+                'XAUTHORITY='+authority,'/usr/bin/xdotool','getmouselocation','--shell'],capture_output=True,text=True)
+            if 'X=100\n' in pointer.stdout and 'Y=100\n' in pointer.stdout:break
+            time.sleep(.1)
+        else:raise AssertionError('Public WSS input did not move the real desktop pointer')
         with db:
             db.execute("UPDATE host_desktop_requests SET status='revoked' WHERE user_id=?",(user_id,))
         start = time.monotonic()
