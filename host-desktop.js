@@ -9,6 +9,14 @@
   const current = byId('desktop-current');
   const badge = byId('desktop-badge');
   const form = byId('desktop-request-form');
+  const feedback = document.createElement('p'); feedback.className = 'notice'; feedback.hidden = true;
+  feedback.setAttribute('role', 'status'); feedback.tabIndex = -1; form.after(feedback);
+  let submitting = false;
+  function requestMessage(text, error = false) {
+    feedback.textContent = text; feedback.hidden = false; feedback.classList.toggle('error', error);
+    feedback.focus({preventScroll:true}); feedback.scrollIntoView({block:'nearest',behavior:'instant'});
+  }
+  form.addEventListener('invalid', event => requestMessage(event.target.validationMessage || '필수 항목을 확인해 주세요.',true),true);
   let session = null;
   let epoch = 0;
   const labels = {pending: '관리자 승인 대기', approved: 'Kali 계정 준비 중', ready: '접속 가능', revoked: '접속 해제', failed: '준비 실패'};
@@ -28,17 +36,12 @@
     if (!response.ok) throw new Error(body.error || '요청을 처리하지 못했습니다. 다시 시도해 주세요.');
     return body;
   }
-  function tunnel(user, host) {
-    return `ssh -o ExitOnForwardFailure=yes -i "내_개인키_경로" -L 127.0.0.1:13389:127.0.0.1:3389 -N ${user}@${host}`;
-  }
   function accessDetails(user, host, admin = false) {
     const block = element('div', 'record');
-    block.append(element('p', 'muted', admin ? '기존 관리자 SSH 키와 Kali 계정 비밀번호를 사용합니다.' :
-      '신청할 때 등록한 공개키에 맞는 개인키와 별도로 정한 Kali 원격 비밀번호를 사용합니다.'));
+    block.append(element('p', 'muted', admin ? '본인의 Kali 관리자 계정 비밀번호로 접속합니다.' :
+      '신청할 때 정한 Kali 원격 비밀번호로 본인의 화면에 접속합니다.'));
     block.append(element('strong', '', `Kali 계정: ${user}`));
-    block.append(element('p', 'muted', '아래 명령을 Windows PowerShell에서 실행해 둔 채 원격 데스크톱을 여세요.'));
-    block.append(element('pre', '', tunnel(user, host)));
-    block.append(element('p', 'muted', 'Windows에서 mstsc 실행 → 컴퓨터 127.0.0.1:13389 → Xorg 세션에서 위 Kali 계정으로 로그인'));
+    block.append(action('웹 원격 화면 열기', () => window.HBRemote.show()));
     return block;
   }
   function action(label, handler, danger = false) {
@@ -52,10 +55,15 @@
     return button;
   }
   function renderMember(data) {
+    window.HBRemote.update(session, data.isAdmin || data.request?.status === 'ready');
     current.replaceChildren();
     const row = data.request;
     badge.textContent = row ? labels[row.status] || row.status : '신청 전';
     requestPanel.hidden = !!(row && ['approved', 'ready'].includes(row.status)) || data.isAdmin;
+    form.hidden = row?.status === 'pending';
+    if (row?.status === 'pending' && feedback.hidden) {
+      feedback.textContent = '접수 완료 — 관리자 승인을 기다리고 있습니다.'; feedback.hidden = false;
+    }
     if (data.isAdmin) {
       badge.textContent = '관리자 접속';
       current.append(accessDetails('habang222', data.sshHost, true));
@@ -96,12 +104,13 @@
     const currentEpoch = ++epoch;
     const previousUserId = session?.user?.id;
     session = next || null;
-    if (previousUserId && previousUserId !== session?.user?.id) form.reset();
+    if (previousUserId && previousUserId !== session?.user?.id) { form.reset(); feedback.hidden = true; }
     const complete = Boolean(session?.user?.verified && session?.user?.registrationComplete);
     guest.hidden = complete;
     member.hidden = !complete;
     adminPanel.hidden = !complete || !session.user.isAdmin;
     if (!complete) {
+      window.HBRemote.update(session, false);
       current.replaceChildren(); byId('desktop-admin-list').replaceChildren();
       message(session?.user ? '이메일 인증과 회원가입을 완료해 주세요.' : '로그인 후 이용할 수 있습니다.');
       return;
@@ -117,15 +126,18 @@
   byId('desktop-login').addEventListener('click', () => window.dispatchEvent(new Event(session?.user ? 'habang:register' : 'habang:login')));
   form.addEventListener('submit', async event => {
     event.preventDefault();
+    if (submitting) return;
+    submitting = true;
     const button = form.querySelector('button[type=submit]'); button.disabled = true;
+    requestMessage('신청을 서버에 저장하는 중입니다…');
     try {
       const values = new FormData(form);
       await api('/api/host-desktop', {method: 'POST', body: JSON.stringify({
         publicKey: values.get('publicKey'), desktopPassword: values.get('desktopPassword')
       })});
-      form.reset(); await refresh(session); message('신청을 접수했습니다. 관리자의 별도 승인을 기다려 주세요.');
-    } catch (error) { message(error.message, true); }
-    finally { button.disabled = false; }
+      form.reset(); await refresh(session); requestMessage('접수 완료 — 관리자 승인을 기다리고 있습니다.');
+    } catch (error) { requestMessage('신청이 저장되지 않았습니다: ' + error.message, true); }
+    finally { submitting = false; button.disabled = false; }
   });
   byId('desktop-refresh').addEventListener('click', () => refresh(session));
   window.addEventListener('habang:session', event => refresh(event.detail));

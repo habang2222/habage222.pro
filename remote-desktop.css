@@ -1,0 +1,16 @@
+.remote-panel{scroll-margin-top:24px;background:#f2fbfa}
+.remote-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.remote-toolbar h2{margin:0 auto 0 0}
+.remote-connect{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:16px 0}
+.remote-connect label{display:grid;gap:6px;flex:1;min-width:180px;font-weight:600}
+.remote-connect input,.remote-connect select{box-sizing:border-box;width:100%;border:1px solid #81b9b3;border-radius:10px;padding:12px;background:white;color:#173d3a;font:inherit}
+.remote-viewport{height:min(70vh,850px);min-height:320px;background:#163332;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;outline:none}
+.remote-viewport:empty::before{content:'연결하면 이곳에 Kali 화면이 열립니다';color:#bad7d2;padding:24px;text-align:center}
+.remote-input{flex:none;outline:none;touch-action:none}
+.remote-input:focus-visible{outline:2px solid #5fe2c6;outline-offset:3px}
+.remote-panel:fullscreen{box-sizing:border-box;padding:12px;border:0;border-radius:0;background:#102c2b;display:flex;flex-direction:column;overflow:auto;color:#e4f3f0}
+.remote-panel:fullscreen .remote-viewport{flex:1;min-height:0;height:auto}
+.remote-panel:fullscreen .remote-status{margin:4px 0 10px;color:#d8efea}
+.remote-panel:fullscreen .remote-hint{display:none}
+.remote-status{min-height:24px}
+@media(max-width:600px){.remote-toolbar .action{padding:8px;font-size:13px}.remote-toolbar h2{width:100%}.remote-viewport{height:58vh;min-height:260px}.remote-connect{display:grid;grid-template-columns:1fr}.remote-connect label{min-width:0}}

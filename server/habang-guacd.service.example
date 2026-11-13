@@ -1,0 +1,15 @@
+[Unit]
+Description=Loopback-only browser remote desktop translator
+After=network.target xrdp.service
+Requires=xrdp.service
+
+[Service]
+ExecStartPre=-/usr/bin/podman rm -f habang-guacd
+ExecStart=/usr/bin/podman run --name habang-guacd --rm --network host --cap-drop ALL --security-opt no-new-privileges --read-only --tmpfs /tmp:rw,nosuid,nodev,size=128m --env HOME=/tmp --memory 384m --cpus 1 --pids-limit 128 --entrypoint /opt/guacamole/sbin/guacd docker.io/guacamole/guacd@sha256:8974eaa9ba32f713daf311e7cc8cd7e4cdfba1edea39eed75524e78ef4b08f4f -f -b 127.0.0.1 -l 4822 -p /tmp/guacd.pid -L warning
+ExecStop=/usr/bin/podman stop -t 5 habang-guacd
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

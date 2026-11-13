@@ -95,7 +95,7 @@ def register_host_desktop(app, db, fail, payload, require_verified_user, rate_li
             return fail('신청이 너무 많습니다. 잠시 후 다시 시도해 주세요.', 429)
         data = payload()
         try:
-            public_key = validate_public_key(data.get('publicKey'))
+            public_key = validate_public_key(data.get('publicKey')) if data.get('publicKey') else ''
         except ValueError as error:
             return fail(str(error), 400)
         password = data.get('desktopPassword')

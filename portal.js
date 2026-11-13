@@ -155,10 +155,39 @@
       }));
       users.append(record);
     }
-    await loadPrivacyRequests();
+    await Promise.all([loadPrivacyRequests(), loadHostRequests()]);
+  }
+  let hostList, hostTitle;
+  async function loadHostRequests() {
+    if (!adminPage || !session.user?.isAdmin) return;
+    const owner = session.user.id;
+    const data = await api('/api/admin/host-desktops');
+    if (session.user?.id !== owner || !session.user?.isAdmin) return;
+    hostList.replaceChildren();
+    hostTitle.textContent = `Kali 호스트 접속 신청 · 승인 대기 ${data.requests.filter(row=>row.status==='pending').length}건`;
+    if (!data.requests.length) hostList.append(node('p','empty','접수된 Kali 호스트 신청이 없습니다.'));
+    const states = {pending:'승인 대기',approved:'계정 준비 중',ready:'접속 가능',revoked:'권한 회수',failed:'준비 실패'};
+    for (const row of data.requests) {
+      const record=node('article','record');
+      record.append(node('strong','',row.name),node('span','pill',states[row.status]||row.status),node('p','meta',`${row.email} · 신청 ${date(row.requestedAt)}`));
+      if(row.lastError) record.append(node('p','error',row.lastError));
+      const buttons=node('div','button-row');
+      const review=async decision=>{
+        await api(`/api/admin/host-desktops/${row.userId}/review`,{method:'POST',body:JSON.stringify({decision})});
+        await loadHostRequests(); message(decision==='revoke'?'Kali 접속 권한을 회수했습니다.':'Kali 계정 준비를 요청했습니다.');
+      };
+      if(row.status==='pending') buttons.append(action('Kali 접속 승인',()=>review('approve')));
+      if(row.status==='failed') buttons.append(action('계정 준비 재시도',()=>review('retry')));
+      if(row.status!=='revoked') buttons.append(action('접속 권한 회수',async()=>{if(window.confirm('이 회원의 Kali 원격 접속을 해제할까요?')) await review('revoke');},true));
+      record.append(buttons); hostList.append(record);
+    }
   }
   let privacyList;
   if (adminPage) {
+    const hostPanel=node('section','panel'); hostTitle=node('h2','','Kali 호스트 접속 신청');
+    hostList=node('div','record-list');
+    hostPanel.append(hostTitle,node('p','muted','Kali 원격 페이지에서 접수된 호스트 신청입니다. 대여 컨테이너 승인과 별도로 관리합니다.'),hostList);
+    byId('admin-content').prepend(hostPanel);
     const panel = node('section', 'panel');
     const heading = node('div', 'panel-heading');
     heading.append(node('h2', '', '개인정보 요청'));

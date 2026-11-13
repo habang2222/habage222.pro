@@ -65,6 +65,11 @@ class HostWorkerTests(unittest.TestCase):
         self.assertEqual(self.runtime.created, [])
         self.assertEqual(self.runtime.disabled, [self.uid])
         self.assertEqual(self.status(), 'failed')
+    def test_browser_only_account_has_no_authorized_ssh_key(self):
+        self.execute("UPDATE host_desktop_requests SET public_key=''")
+        self.worker.run_once()
+        self.assertEqual(self.status(), 'ready')
+        self.assertEqual(authorized_key(''), b'')
     def test_revocation_during_provision_never_marks_ready(self):
         def provision(row): self.execute("UPDATE host_desktop_requests SET status='revoked'")
         self.runtime.provision = provision

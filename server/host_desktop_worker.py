@@ -62,7 +62,8 @@ def active_request(row):
     if not row['approved_by'] or not row['approved_at']:
         raise ProvisionError('Approval record missing')
     try:
-        validate_public_key(row['public_key'])
+        if row['public_key']:
+            validate_public_key(row['public_key'])
     except ValueError as error:
         raise ProvisionError('Invalid SSH key') from error
     password_hash = row['password_hash']
@@ -72,6 +73,8 @@ def active_request(row):
 
 
 def authorized_key(public_key):
+    if not public_key:
+        return b''
     key = validate_public_key(public_key)
     return ('restrict,port-forwarding,permitopen="127.0.0.1:3389",'
             'command="/usr/sbin/nologin" ' + key + '\n').encode('ascii')
