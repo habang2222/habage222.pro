@@ -23,6 +23,7 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 from portal import PORTAL_SCHEMA, register_portal
 from host_desktop import HOST_DESKTOP_SCHEMA, register_host_desktop
+from remote_desktop import REMOTE_SCHEMA, register_remote_desktop
 
 PASSWORDS = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
 DUMMY_HASH = PASSWORDS.hash(secrets.token_urlsafe(32))
@@ -154,6 +155,7 @@ def create_app(config=None):
         conn.executescript(SCHEMA)
         conn.executescript(PORTAL_SCHEMA)
         conn.executescript(HOST_DESKTOP_SCHEMA)
+        conn.executescript(REMOTE_SCHEMA)
         # Existing accounts retain their IDs and data, but must prove email
         # ownership and complete the new profile before privileged services.
         columns = {row[1] for row in conn.execute('PRAGMA table_info(users)')}
@@ -269,7 +271,7 @@ def create_app(config=None):
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; script-src 'self'; style-src 'self'; "
-            "img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; "
+            "img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; "
             "frame-ancestors 'none'; form-action 'self'"
         )
         if secure:
@@ -646,6 +648,7 @@ def create_app(config=None):
 
     register_portal(app, db, fail, payload, text, require_verified_user, rate_limit, admins)
     register_host_desktop(app, db, fail, payload, require_verified_user, rate_limit, admins)
+    register_remote_desktop(app, db, csrf_token, require_verified_user, rate_limit, admins)
 
     oauth = OAuth(app)
     google_id = app.config.get('GOOGLE_CLIENT_ID', os.getenv('GOOGLE_CLIENT_ID'))

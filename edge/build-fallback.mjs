@@ -16,7 +16,7 @@ function assetVersion(name) {
 }
 for (const entry of fs.readdirSync(source, {withFileTypes: true})) {
   if (!entry.isFile() || !/\.(?:html|css|js)$/.test(entry.name)) continue;
-  if (['community.js', 'portal.js', 'support.js', 'host-desktop.js'].includes(entry.name)) continue;
+  if (['community.js', 'portal.js', 'support.js', 'host-desktop.js', 'remote-desktop.js'].includes(entry.name)) continue;
   const input = path.join(source, entry.name);
   const output = path.join(destination, entry.name);
   if (!entry.name.endsWith('.html')) {
@@ -44,6 +44,7 @@ for (const [name, origin] of [
   ['portal.js', 'offline-portal.js'],
   ['support.js', 'offline-support.js'],
   ['host-desktop.js', 'offline-host-desktop.js'],
+  ['remote-desktop.js', 'offline-remote-desktop.js'],
   ['offline.css', 'offline.css'],
 ]) fs.copyFileSync(path.join(source, 'edge', origin), path.join(destination, name));
 fs.writeFileSync(path.join(destination, '.nojekyll'), '');

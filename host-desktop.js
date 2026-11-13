@@ -36,17 +36,12 @@
     if (!response.ok) throw new Error(body.error || '요청을 처리하지 못했습니다. 다시 시도해 주세요.');
     return body;
   }
-  function tunnel(user, host) {
-    return `ssh -o ExitOnForwardFailure=yes -i "내_개인키_경로" -L 127.0.0.1:13389:127.0.0.1:3389 -N ${user}@${host}`;
-  }
   function accessDetails(user, host, admin = false) {
     const block = element('div', 'record');
-    block.append(element('p', 'muted', admin ? '기존 관리자 SSH 키와 Kali 계정 비밀번호를 사용합니다.' :
-      '신청할 때 등록한 공개키에 맞는 개인키와 별도로 정한 Kali 원격 비밀번호를 사용합니다.'));
+    block.append(element('p', 'muted', admin ? '본인의 Kali 관리자 계정 비밀번호로 접속합니다.' :
+      '신청할 때 정한 Kali 원격 비밀번호로 본인의 화면에 접속합니다.'));
     block.append(element('strong', '', `Kali 계정: ${user}`));
-    block.append(element('p', 'muted', '아래 명령을 Windows PowerShell에서 실행해 둔 채 원격 데스크톱을 여세요.'));
-    block.append(element('pre', '', tunnel(user, host)));
-    block.append(element('p', 'muted', 'Windows에서 mstsc 실행 → 컴퓨터 127.0.0.1:13389 → Xorg 세션에서 위 Kali 계정으로 로그인'));
+    block.append(action('웹 원격 화면 열기', () => window.HBRemote.show()));
     return block;
   }
   function action(label, handler, danger = false) {
@@ -60,6 +55,7 @@
     return button;
   }
   function renderMember(data) {
+    window.HBRemote.update(session, data.isAdmin || data.request?.status === 'ready');
     current.replaceChildren();
     const row = data.request;
     badge.textContent = row ? labels[row.status] || row.status : '신청 전';
@@ -114,6 +110,7 @@
     member.hidden = !complete;
     adminPanel.hidden = !complete || !session.user.isAdmin;
     if (!complete) {
+      window.HBRemote.update(session, false);
       current.replaceChildren(); byId('desktop-admin-list').replaceChildren();
       message(session?.user ? '이메일 인증과 회원가입을 완료해 주세요.' : '로그인 후 이용할 수 있습니다.');
       return;
