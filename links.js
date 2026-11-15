@@ -2,6 +2,12 @@
 // description과 download를 지정하면 설명과 설치 파일 받기 버튼도 표시합니다.
 window.HABANG_LINKS = [
   {
+    title: "in the world",
+    url: "https://habang.taila77bea.ts.net:8443/",
+    description: "같은 세계에서 함께 탐험하는 브라우저 멀티플레이 게임입니다. 현재 접속·이동·기록 저장을 체험할 수 있습니다.",
+    tags: ["game", "multiplayer", "바이브코딩"]
+  },
+  {
     title: "사진 빠른 분류",
     url: "photo-sorter.html",
     description: "사진마다 앨범을 골라 복사하는 Android 사진 정리 앱입니다.",
