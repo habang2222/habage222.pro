@@ -1,0 +1,13 @@
+[Unit]
+Description=Restrict rootless rental outbound access to private networks
+After=ufw.service
+Before=habang-rentals.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/sbin/nft -c -f /etc/habang/rental-egress.nft
+ExecStart=/usr/sbin/nft -f /etc/habang/rental-egress.nft
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

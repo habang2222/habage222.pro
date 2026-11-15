@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8bdedc"><meta name="description" content="habang222 로그인·서비스 문의, 본인 자료 열람 및 계정 삭제 요청">
+  <title>고객지원·정보 요청 | habang222</title>
+  <link rel="stylesheet" href="/portal.css?v=2"><link rel="stylesheet" href="/community.css?v=4"><link rel="stylesheet" href="/legal.css?v=1">
+  <script src="/community.js?v=6" defer></script><script src="/support.js?v=1" defer></script>
+</head>
+<body>
+  <main class="legal-shell">
+    <a class="back-link" href="/">← habang222 홈</a>
+    <header class="legal-hero"><span class="eyebrow">HABANG222 · SUPPORT</span><h1>고객지원·정보 요청</h1><p>서비스 문의와 본인 계정 자료 요청을 여기서 시작하세요.</p></header>
+    <nav class="legal-nav" aria-label="서비스 안내"><a href="/privacy.html">개인정보처리방침</a><a href="/terms.html">이용약관</a><a aria-current="page" href="/support.html">고객지원·정보 요청</a></nav>
+    <div class="legal-card">
+      <section><h2>서비스·로그인 문의</h2><p>문의 이메일: <a href="mailto:victor6580a@gmail.com?subject=habang222%20%EB%AC%B8%EC%9D%98">victor6580a@gmail.com</a>. 어떤 페이지에서 어떤 문제가 생겼는지 알려주시면 확인할 수 있습니다. 비밀번호, API 키, OAuth 비밀값, SSH 개인키는 보내지 마세요.</p><p>공개 가능한 오류나 개선 제안은 <a href="https://github.com/habang2222/habage222.pro/issues/new" rel="noopener noreferrer">GitHub 이슈</a>로도 남길 수 있습니다. GitHub 이슈는 누구나 읽을 수 있으니 이메일 주소나 계정 자료를 올리지 마세요.</p></section>
+      <section><h2>본인 자료 열람·삭제 요청</h2><p>로그인한 회원은 본인 자료 내보내기 또는 계정 삭제를 비공개로 요청할 수 있습니다. 요청은 관리자 검토 후 처리되며, 접수만으로 계정이나 대여 서버가 바로 삭제되지는 않습니다. 처리 상태는 이 페이지에서 확인해 주세요. “처리 불가”가 표시되거나 로그인할 수 없다면 위 이메일로 문의해 주세요.</p>
+        <div id="privacy-request-guest" class="notice subtle"><p>요청을 보내려면 로그인해 주세요.</p><button id="privacy-request-login" class="action" type="button">로그인 · 회원가입</button></div>
+        <form id="privacy-request-form" class="form-grid" hidden><label>요청 종류<select name="kind" required><option value="export">내 계정 자료 열람·내보내기</option><option value="delete">계정 및 관련 자료 삭제</option></select></label><label class="wide">추가 설명 (선택)<textarea name="message" rows="4" maxlength="500" placeholder="처리에 필요한 내용만 적어 주세요. 비밀번호와 API 키는 입력하지 마세요."></textarea></label><button class="action primary" type="submit">비공개 요청 접수</button></form>
+        <p id="privacy-request-status" class="notice subtle" role="status" aria-live="polite">회원 정보를 확인하고 있습니다.</p>
+        <div id="privacy-request-list" class="record-list" aria-label="내 정보 요청 내역"></div>
+      </section>
+    </div>
+  </main>
+  <footer class="legal-footer"><a href="/">habang222</a><a href="/privacy.html">개인정보처리방침</a><a href="/terms.html">이용약관</a><a href="/support.html">고객지원</a></footer>
+</body>
+</html>

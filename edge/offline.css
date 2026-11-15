@@ -1,0 +1,19 @@
+.hb-fallback-notice {
+  box-sizing: border-box;
+  padding: 12px 18px;
+  background: #053e38;
+  color: #fff;
+  font: 600 15px/1.5 system-ui, sans-serif;
+  text-align: center;
+  position: relative;
+  z-index: 9999;
+  box-shadow: 0 2px 8px #0002;
+}
+[data-portal] form,
+[data-portal] .button-row,
+[data-portal] #portal-guest,
+[data-portal] #admin-content,
+[data-portal] #key-list,
+[data-portal] #rental-list {
+  display: none !important;
+}

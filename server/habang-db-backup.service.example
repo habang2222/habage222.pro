@@ -1,0 +1,17 @@
+[Unit]
+Description=Create and verify a consistent habang SQLite backup
+RequiresMountsFor=/srv/files/data /srv/files/backups/scheduled
+
+[Service]
+Type=oneshot
+User=habang222
+Group=habang222
+WorkingDirectory=/srv/files/app
+Environment=DATABASE=/srv/files/data/community.sqlite3
+ExecStart=/srv/files/venv/bin/python /srv/files/app/backup_database.py
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/files/backups/scheduled
+ProtectHome=yes
+PrivateTmp=yes

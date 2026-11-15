@@ -7,16 +7,10 @@ $env:TEMP = Join-Path $TestRoot 'temp'
 New-Item -ItemType Directory -Path $env:LOCALAPPDATA,$env:TEMP -Force | Out-Null
 $global:taskScenario = $Scenario
 $global:taskLog = Join-Path $TestRoot 'calls.txt'
-$global:taskDownloadRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'downloads'
 function Write-Call([string]$Text) { Add-Content -LiteralPath $global:taskLog -Value $Text }
 function Invoke-WebRequest {
   param([switch]$UseBasicParsing, [string]$Uri, [string]$OutFile)
-  Write-Call ('download ' + $Uri)
-  if ($global:taskScenario -eq 'corrupt') {
-    [IO.File]::WriteAllText($OutFile, 'corrupt download')
-  } else {
-    Copy-Item -LiteralPath (Join-Path $global:taskDownloadRoot ([Uri]$Uri).Segments[-1]) -Destination $OutFile
-  }
+  throw 'A downloaded setup helper must not request a second protected download.'
 }
 function Test-Path {
   [CmdletBinding(DefaultParameterSetName='Path')]
@@ -56,4 +50,14 @@ function wsl.exe {
 }
 $body = ([IO.File]::ReadAllText($Helper) -split '(?m)^# POWERSHELL\r?$',2)[1]
 if (-not $body) { throw 'Hybrid script marker failed.' }
+if ($Scenario -eq 'corrupt') {
+  $needle = if ($Helper -like '*MGlogWH*') { '$scriptBase64 = @''' } else { '$archiveBase64 = @''' }
+  $marker = $body.IndexOf($needle, [StringComparison]::Ordinal)
+  if ($marker -lt 0) { throw 'Embedded payload marker missing.' }
+  $position = $body.IndexOf("`n", $marker) + 1
+  if ($position -le 0) { throw 'Embedded payload is malformed.' }
+  if ($body[$position] -eq "`r") { $position++ }
+  $replacement = if ($body[$position] -eq 'A') { 'B' } else { 'A' }
+  $body = $body.Substring(0, $position) + $replacement + $body.Substring($position + 1)
+}
 & ([scriptblock]::Create($body))
